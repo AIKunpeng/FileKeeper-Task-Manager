@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="FileKeeper.App" />
+  <!--
+    清单保持 asInvoker：这是一个随托盘常驻的日常使用程序，若声明 requireAdministrator，
+    每次开机启动都要弹一次 UAC，且提升后的进程会与普通进程隔离（无法被任务栏/脚本正常关闭）。
+    真正需要管理员权限的只有「安装 / 卸载 / 启动 / 停止服务」，
+    这几处由界面端以 runas 重新拉起 FileKeeper.Service.exe 单独提权完成。
+  -->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 / 11 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <!-- 高 DPI 通过项目属性 ApplicationHighDpiMode 配置，此处仅保留长路径支持 -->
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+    </windowsSettings>
+  </application>
+</assembly>

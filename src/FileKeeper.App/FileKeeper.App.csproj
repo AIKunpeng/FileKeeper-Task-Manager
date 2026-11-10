@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <!--
+      启用 UseWindowsForms 后，隐式全局 using 会被整体替换成 WinForms 那一套：
+      它不导入 System.IO，却全局导入 System.Windows.Forms。
+      结果是 Directory / File / Path 找不到，同时 Application、Brush、Binding、
+      OpenFileDialog 等类型与 WPF 的版本同名冲突。
+      这里把 System.IO 补回来并撤掉全局的 Forms / Drawing 引用；
+      真正需要 Forms 的文件（托盘）再各自显式 using。
+    -->
+    <Using Include="System.IO" />
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FileKeeper.Core\FileKeeper.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>FileKeeper.App</RootNamespace>
+    <AssemblyName>FileKeeper.App</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <UseWPF>true</UseWPF>
+    <!-- 托盘图标使用内置 System.Windows.Forms.NotifyIcon，避免第三方依赖 -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+</Project>

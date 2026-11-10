@@ -1,0 +1,78 @@
+# ==================== 构建输出 ====================
+# 任意层级的 bin / obj（含 WPF 生成的 _wpftmp 临时工程、MSBuild 日志）
+[Bb]in/
+[Oo]bj/
+*_wpftmp.csproj
+*.binlog
+
+# 测试运行产物
+TestResults/
+*.trx
+coverage*.xml
+coverage*.json
+coverage*.info
+
+# ==================== 发布与安装包产物 ====================
+# scripts\publish.ps1 产出：dist\App、dist\Service、dist\FileKeeper-Setup.exe
+[Dd]ist/
+[Pp]ublish/
+[Aa]rtifacts/
+[Oo]ut/
+*.publishsettings
+
+# 安装包载荷：由 scripts\publish.ps1 从 dist 打包生成，随 FileKeeper.Setup.exe 编译时嵌入
+src/FileKeeper.Setup/payload/
+
+# ==================== 日志与运行时数据 ====================
+# 运行日志目录（默认 %ProgramData%\FileKeeper\logs，工程内残留的也一并忽略）
+*.log
+[Ll]og/
+[Ll]ogs/
+
+# 本机配置/数据文件，运行时生成，不入库
+FileKeeper.config.json
+
+# ==================== IDE / 编辑器 ====================
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+
+# ==================== NuGet ====================
+# 旧式 packages.config 还原目录与本地打包产物（本工程用 PackageReference，一般不产生）
+packages/
+*.nupkg
+*.snupkg
+
+# ==================== 敏感凭据（绝不入库） ====================
+# 只匹配数据/配置文件，不要写成 *credentials* 这类宽泛通配：
+# 那会把 Credentials.cs 之类的源码一起忽略，克隆后编译报缺文件且极难排查。
+*.secret
+*.password
+*credential*.json
+*secret*.json
+*.pem
+*.key.json
+.env
+.env.*
+!.env.example
+
+# ==================== 签名与证书（绝不入库） ====================
+*.pfx
+*.snk
+*.pvk
+
+# ==================== 系统与杂项文件 ====================
+Thumbs.db
+desktop.ini
+.DS_Store
+*.swp
+*.bak
+*.tmp
+*.orig
+*.rej
+~$*

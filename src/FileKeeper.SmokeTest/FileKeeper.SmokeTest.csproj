@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>FileKeeper.SmokeTest</RootNamespace>
+    <AssemblyName>FileKeeper.SmokeTest</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <!-- 冒烟程序不随产品发布，不进 dist，也不需要文档文件 -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FileKeeper.Core\FileKeeper.Core.csproj" />
+  </ItemGroup>
+
+</Project>

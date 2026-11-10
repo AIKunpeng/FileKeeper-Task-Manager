@@ -1,0 +1,17 @@
+第三方组件声明
+================
+
+目录 Native\win-x64 下的 7z.dll 与 7z.exe 来自 7-Zip 官方发行包，随本程序一起分发，
+用于提供内嵌的压缩/解压能力（无需用户另行安装 7-Zip）。
+
+- 组件：7-Zip
+- 版本：26.05（发布于 2026-10-21，取自 x64 安装包）
+- 官网：https://www.7-zip.org/
+- 许可：GNU LGPL v2.1+（含 unRAR 限制条款）
+  - 完整许可文本见：https://www.7-zip.org/license.txt
+- 版权：Copyright (C) 1999-2026 Igor Pavlov
+
+分发的二进制文件未做任何修改。如需替换版本，请保持 7z.dll 与 7z.exe 同目录且同为 x64。
+
+注意：RAR 为商业格式，7-Zip 只能解压 RAR、无法创建 RAR。
+创建 RAR 由本程序调用系统已安装的 WinRAR（Rar.exe）完成，WinRAR 的许可受其自身协议约束。

@@ -1,0 +1,248 @@
+<UserControl x:Class="FileKeeper.App.Views.CleanupTaskEditView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:FileKeeper.App.Views"
+             xmlns:conv="clr-namespace:FileKeeper.App.Converters"
+             xmlns:core="clr-namespace:FileKeeper.Core.Models;assembly=FileKeeper.Core">
+
+    <UserControl.RenderTransform>
+        <TranslateTransform Y="0" />
+    </UserControl.RenderTransform>
+
+    <UserControl.Triggers>
+        <EventTrigger RoutedEvent="Loaded">
+            <BeginStoryboard>
+                <Storyboard>
+                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                     From="0" To="1"
+                                     Duration="0:0:0.2" />
+                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                     From="10" To="0"
+                                     Duration="0:0:0.2" />
+                </Storyboard>
+            </BeginStoryboard>
+        </EventTrigger>
+    </UserControl.Triggers>
+
+    <UserControl.Resources>
+        <conv:EnumToBooleanConverter x:Key="FilterToBool" EnumType="{x:Type core:FileFilterMode}" />
+        <conv:EnumToVisibilityConverter x:Key="FilterToVis" EnumType="{x:Type core:FileFilterMode}" />
+        <conv:EnumToBooleanConverter x:Key="UnitToBool" EnumType="{x:Type core:CleanupThresholdUnit}" />
+        <conv:EnumToBooleanConverter x:Key="BasisToBool" EnumType="{x:Type core:AgeTimeBasis}" />
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:EmptyToVisibilityConverter x:Key="EmptyToVis" />
+        <conv:StringListConverter x:Key="StringList" />
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Margin="0,0,0,16">
+            <StackPanel Orientation="Horizontal">
+                <Button Style="{StaticResource BackButton}" Command="{Binding CancelCommand}" />
+                <TextBlock Text="{Binding EditorTitle}"
+                           Style="{StaticResource H1}"
+                           VerticalAlignment="Center"
+                           Margin="12,0,0,0" />
+            </StackPanel>
+
+            <CheckBox Content="启用此任务"
+                      Style="{StaticResource ToggleSwitch}"
+                      IsChecked="{Binding Enabled}"
+                      HorizontalAlignment="Right"
+                      VerticalAlignment="Center" />
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,10,0">
+            <StackPanel MaxWidth="860" HorizontalAlignment="Left">
+                <!-- 目标 -->
+                <Border Style="{StaticResource Section}" Padding="20">
+                    <StackPanel>
+                        <TextBlock Text="目标" Style="{StaticResource H2}" Margin="0,0,0,14" />
+
+                        <TextBlock Text="任务名称" Style="{StaticResource FieldLabel}" />
+                        <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                 Tag="例如：清理 30 天前的日志" />
+
+                        <TextBlock Text="清理目录" Style="{StaticResource FieldLabel}" Margin="0,16,0,0" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Text="{Binding TargetDirectory, UpdateSourceTrigger=PropertyChanged}"
+                                     Tag="选择要清理的目录" />
+                            <Button Grid.Column="1"
+                                    Content="浏览..."
+                                    Style="{StaticResource SecondaryButton}"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding BrowseTargetCommand}" />
+                        </Grid>
+
+                        <CheckBox Content="包含子目录"
+                                  IsChecked="{Binding IncludeSubDirectories}"
+                                  Margin="0,14,0,0" />
+
+                        <TextBlock Text="文件过滤" Style="{StaticResource FieldLabel}" Margin="0,16,0,0" />
+                        <Border Background="{StaticResource BgSubtleBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="7"
+                                Padding="3"
+                                HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton Content="全部文件"
+                                             Style="{StaticResource SegmentedItem}"
+                                             Height="30"
+                                             IsChecked="{Binding FilterMode, Converter={StaticResource FilterToBool}, ConverterParameter=All}" />
+                                <RadioButton Content="仅指定扩展名"
+                                             Style="{StaticResource SegmentedItem}"
+                                             Height="30"
+                                             IsChecked="{Binding FilterMode, Converter={StaticResource FilterToBool}, ConverterParameter=IncludeExtensions}" />
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Margin="0,12,0,0"
+                                    Visibility="{Binding FilterMode, Converter={StaticResource FilterToVis}, ConverterParameter=IncludeExtensions}">
+                            <TextBlock Text="扩展名，多个用逗号分隔" Style="{StaticResource FieldLabel}" />
+                            <TextBox Tag=".log, .tmp"
+                                     Text="{Binding Extensions, Converter={StaticResource StringList}, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <TextBlock Text="排除的子目录，多个用逗号分隔"
+                                       Style="{StaticResource FieldLabel}"
+                                       Margin="0,12,0,0" />
+                            <TextBox Tag="archive"
+                                     Text="{Binding ExcludedDirectories, Converter={StaticResource StringList}, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- 规则 -->
+                <Border Style="{StaticResource Section}" Padding="20" Margin="0,14,0,0">
+                    <StackPanel>
+                        <TextBlock Text="保留规则" Style="{StaticResource H2}" Margin="0,0,0,14" />
+
+                        <TextBlock Text="删除超过以下时长的文件" Style="{StaticResource FieldLabel}" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox Width="110"
+                                     Text="{Binding ThresholdValue, UpdateSourceTrigger=PropertyChanged}" />
+                            <Border Background="{StaticResource BgSubtleBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="7"
+                                    Padding="3"
+                                    Margin="10,0,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton Content="小时"
+                                                 Style="{StaticResource SegmentedItem}"
+                                                 Height="30"
+                                                 MinWidth="56"
+                                                 IsChecked="{Binding ThresholdUnit, Converter={StaticResource UnitToBool}, ConverterParameter=Hours}" />
+                                    <RadioButton Content="天"
+                                                 Style="{StaticResource SegmentedItem}"
+                                                 Height="30"
+                                                 MinWidth="56"
+                                                 IsChecked="{Binding ThresholdUnit, Converter={StaticResource UnitToBool}, ConverterParameter=Days}" />
+                                    <RadioButton Content="周"
+                                                 Style="{StaticResource SegmentedItem}"
+                                                 Height="30"
+                                                 MinWidth="56"
+                                                 IsChecked="{Binding ThresholdUnit, Converter={StaticResource UnitToBool}, ConverterParameter=Weeks}" />
+                                    <RadioButton Content="月"
+                                                 Style="{StaticResource SegmentedItem}"
+                                                 Height="30"
+                                                 MinWidth="56"
+                                                 IsChecked="{Binding ThresholdUnit, Converter={StaticResource UnitToBool}, ConverterParameter=Months}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <Border Style="{StaticResource InfoBar}" Margin="0,12,0,0">
+                            <TextBlock Text="{Binding ThresholdDaysText}"
+                                       Style="{StaticResource Caption}"
+                                       Foreground="{StaticResource PrimaryBrush}" />
+                        </Border>
+
+                        <TextBlock Text="时间基准" Style="{StaticResource FieldLabel}" Margin="0,16,0,0" />
+                        <Border Background="{StaticResource BgSubtleBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="7"
+                                Padding="3"
+                                HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton Content="最后修改时间"
+                                             Style="{StaticResource SegmentedItem}"
+                                             Height="30"
+                                             IsChecked="{Binding TimeBasis, Converter={StaticResource BasisToBool}, ConverterParameter=LastWriteTime}" />
+                                <RadioButton Content="创建时间"
+                                             Style="{StaticResource SegmentedItem}"
+                                             Height="30"
+                                             IsChecked="{Binding TimeBasis, Converter={StaticResource BasisToBool}, ConverterParameter=CreationTime}" />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="{Binding CutoffText}"
+                                   Style="{StaticResource Caption}"
+                                   Margin="0,10,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 预览 -->
+                <Border Style="{StaticResource Section}" Padding="20" Margin="0,14,0,0">
+                    <StackPanel>
+                        <Border Style="{StaticResource WarningBar}">
+                            <TextBlock Text="清理是永久删除，文件不会进入回收站，也无法恢复。"
+                                       Style="{StaticResource Caption}"
+                                       Foreground="{StaticResource WarningBrush}" />
+                        </Border>
+
+                        <Button Content="预览将删除的文件"
+                                Style="{StaticResource SecondaryButton}"
+                                HorizontalAlignment="Left"
+                                Margin="0,14,0,0"
+                                Command="{Binding PreviewAffectedCommand}" />
+
+                        <TextBlock Text="{Binding PreviewText}"
+                                   Style="{StaticResource Caption}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,12,0,0"
+                                   Visibility="{Binding PreviewText, Converter={StaticResource EmptyToVis}}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 调度 -->
+                <Border Style="{StaticResource Section}" Padding="20" Margin="0,14,0,0">
+                    <StackPanel>
+                        <TextBlock Text="调度" Style="{StaticResource H2}" Margin="0,0,0,14" />
+                        <views:ScheduleEditorControl DataContext="{Binding Schedule}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="0,12,0,0"
+                Margin="0,14,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="取消"
+                        Style="{StaticResource SecondaryButton}"
+                        Command="{Binding CancelCommand}" />
+                <Button Content="立即执行"
+                        Style="{StaticResource DangerButton}"
+                        Margin="8,0,0,0"
+                        Command="{Binding RunCommand}" />
+                <Button Content="保存"
+                        Style="{StaticResource PrimaryButton}"
+                        Margin="8,0,0,0"
+                        Command="{Binding SaveCommand}" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

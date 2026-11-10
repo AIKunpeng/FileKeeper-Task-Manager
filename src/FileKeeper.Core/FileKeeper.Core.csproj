@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>FileKeeper.Core</RootNamespace>
+    <AssemblyName>FileKeeper.Core</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentFTP" Version="55.1.0" />
+    <PackageReference Include="Squid-Box.SevenZipSharp" Version="1.6.2.24" />
+    <PackageReference Include="SSH.NET" Version="2026.0.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.1" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.14" />
+  </ItemGroup>
+
+  <!--
+    随包分发的 7-Zip 原生运行库（来自 7-Zip 26.05，LGPL 可再分发）。
+    7z.dll 供 SevenZipEngine 调用，7z.exe 供 SevenZipCliEngine 调用，二者必须同目录。
+    进程位数与 dll 位数必须一致，统一采用 win-x64。
+  -->
+  <ItemGroup>
+    <None Include="Native\win-x64\7z.dll" Link="native\7z.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Native\win-x64\7z.exe" Link="native\7z.exe" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,266 @@
+﻿<Window x:Class="FileKeeper.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:FileKeeper.App.ViewModels"
+        xmlns:views="clr-namespace:FileKeeper.App.Views"
+        xmlns:conv="clr-namespace:FileKeeper.App.Converters"
+        xmlns:svc="clr-namespace:FileKeeper.App.Services"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="FileKeeper 任务管家"
+        Width="1280"
+        Height="820"
+        MinWidth="1100"
+        MinHeight="700"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        Background="{StaticResource BgPageBrush}">
+
+    <!--
+        自绘标题栏：CaptionHeight 让顶部 44px 成为可拖动区，
+        窗口按钮再单独用 IsHitTestVisibleInChrome 取回点击能力。
+    -->
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="44"
+                            ResizeBorderThickness="8"
+                            CornerRadius="10"
+                            GlassFrameThickness="0"
+                            UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <conv:EnumToBooleanConverter x:Key="NavToBool" EnumType="{x:Type svc:NavItem}" />
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- 服务状态指示灯 -->
+        <Style x:Key="ServiceDot" TargetType="Ellipse">
+            <Setter Property="Fill" Value="{StaticResource BorderStrongBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ServiceStatus.State}"
+                             Value="{x:Static svc:ServiceStateKind.Running}">
+                    <Setter Property="Fill" Value="{StaticResource SuccessBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding ServiceStatus.State}"
+                             Value="{x:Static svc:ServiceStateKind.NotInstalled}">
+                    <Setter Property="Fill" Value="{StaticResource WarningBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding ServiceStatus.State}"
+                             Value="{x:Static svc:ServiceStateKind.Busy}">
+                    <Setter Property="Fill" Value="{StaticResource PrimaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 视图与 ViewModel 的映射，导航时由 ContentControl 自动套用 -->
+        <DataTemplate DataType="{x:Type vm:TasksViewModel}">
+            <views:TasksView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:LogViewModel}">
+            <views:LogView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
+            <views:SettingsView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:CompressionTaskEditViewModel}">
+            <views:CompressionTaskEditView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:CleanupTaskEditViewModel}">
+            <views:CleanupTaskEditView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SyncTaskEditViewModel}">
+            <views:SyncTaskEditView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ProgramTaskEditViewModel}">
+            <views:ProgramTaskEditView />
+        </DataTemplate>
+    </Window.Resources>
+
+    <Border Background="{StaticResource BgPageBrush}"
+            CornerRadius="10"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="44" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="28" />
+            </Grid.RowDefinitions>
+
+            <!-- 标题栏 -->
+            <Border Background="{StaticResource BgCardBrush}"
+                    CornerRadius="10,10,0,0"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="18,0">
+                <Grid>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="FileKeeper" Style="{StaticResource H2}" />
+                        <TextBlock Text="任务管家"
+                                   Style="{StaticResource Caption}"
+                                   VerticalAlignment="Center"
+                                   Margin="8,2,0,0" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                        <Button Content="&#xE921;"
+                                Style="{StaticResource IconButton}"
+                                ToolTip="最小化"
+                                Click="OnMinimizeClick" />
+                        <Button Content="&#xE922;"
+                                Style="{StaticResource IconButton}"
+                                ToolTip="最大化"
+                                Click="OnMaximizeClick" />
+                        <Button Content="&#xE8BB;"
+                                Style="{StaticResource IconButton}"
+                                ToolTip="关闭"
+                                Click="OnCloseClick" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- 版权栏：与标题栏同色，收口成底部一条，不抢主体内容的注意力 -->
+            <Border Grid.Row="2"
+                    Background="{StaticResource BgCardBrush}"
+                    CornerRadius="0,0,10,10"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,1,0,0">
+                <TextBlock Text="{Binding Copyright}"
+                           Style="{StaticResource Hint}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+            </Border>
+
+            <!-- 主体 -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- 左侧导航（编辑页打开时隐藏，避免编辑中跳走丢失修改） -->
+                <Border Width="216"
+                        Background="{StaticResource BgCardBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,0,1,0"
+                        Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Margin="0,14,0,0">
+                            <!-- 一级：任务总览。点它回到「全部任务」 -->
+                            <RadioButton Content="任务总览"
+                                         Tag="&#xE8FD;"
+                                         GroupName="Nav"
+                                         Style="{StaticResource NavButton}"
+                                         IsChecked="{Binding SelectedNav, Converter={StaticResource NavToBool}, ConverterParameter=TasksAll}" />
+
+                            <!-- 二级：四个分区。只在任务页展开，从日志/设置页看过去就是收起的一层 -->
+                            <Border Margin="34,2,0,6"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1,0,0,0"
+                                    Visibility="{Binding ShowTaskSubNav, Converter={StaticResource BoolToVis}}">
+                                <StackPanel Margin="1,0,10,0">
+                                    <RadioButton GroupName="Nav"
+                                                 Style="{StaticResource NavSubButton}"
+                                                 IsChecked="{Binding SelectedNav, Converter={StaticResource NavToBool}, ConverterParameter=TasksCompression}">
+                                        <Grid>
+                                            <TextBlock Text="压缩任务" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Tasks.CompressionTasks.Count}"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextTertiaryBrush}"
+                                                       HorizontalAlignment="Right"
+                                                       VerticalAlignment="Center" />
+                                        </Grid>
+                                    </RadioButton>
+
+                                    <RadioButton GroupName="Nav"
+                                                 Style="{StaticResource NavSubButton}"
+                                                 IsChecked="{Binding SelectedNav, Converter={StaticResource NavToBool}, ConverterParameter=TasksCleanup}">
+                                        <Grid>
+                                            <TextBlock Text="清理任务" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Tasks.CleanupTasks.Count}"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextTertiaryBrush}"
+                                                       HorizontalAlignment="Right"
+                                                       VerticalAlignment="Center" />
+                                        </Grid>
+                                    </RadioButton>
+
+                                    <RadioButton GroupName="Nav"
+                                                 Style="{StaticResource NavSubButton}"
+                                                 IsChecked="{Binding SelectedNav, Converter={StaticResource NavToBool}, ConverterParameter=TasksSync}">
+                                        <Grid>
+                                            <TextBlock Text="同步任务" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Tasks.SyncTasks.Count}"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextTertiaryBrush}"
+                                                       HorizontalAlignment="Right"
+                                                       VerticalAlignment="Center" />
+                                        </Grid>
+                                    </RadioButton>
+
+                                    <RadioButton GroupName="Nav"
+                                                 Style="{StaticResource NavSubButton}"
+                                                 IsChecked="{Binding SelectedNav, Converter={StaticResource NavToBool}, ConverterParameter=TasksProgram}">
+                                        <Grid>
+                                            <TextBlock Text="程序任务" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Tasks.ProgramTasks.Count}"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextTertiaryBrush}"
+                                                       HorizontalAlignment="Right"
+                                                       VerticalAlignment="Center" />
+                                        </Grid>
+                                    </RadioButton>
+                                </StackPanel>
+                            </Border>
+
+                            <RadioButton Content="运行日志"
+                                         Tag="&#xE7C5;"
+                                         GroupName="Nav"
+                                         Style="{StaticResource NavButton}"
+                                         IsChecked="{Binding SelectedNav, Converter={StaticResource NavToBool}, ConverterParameter=Logs}" />
+
+                            <RadioButton Content="设置"
+                                         Tag="&#xE713;"
+                                         GroupName="Nav"
+                                         Style="{StaticResource NavButton}"
+                                         IsChecked="{Binding SelectedNav, Converter={StaticResource NavToBool}, ConverterParameter=Settings}" />
+                        </StackPanel>
+
+                        <!-- 服务状态 -->
+                        <Border Grid.Row="2"
+                                Margin="16,14,16,16"
+                                Background="{StaticResource BgSubtleBrush}"
+                                CornerRadius="6"
+                                Padding="14,12">
+                            <StackPanel>
+                                <TextBlock Text="后台服务" Style="{StaticResource Hint}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                    <Ellipse Width="8" Height="8"
+                                             Style="{StaticResource ServiceDot}"
+                                             VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding ServiceStatus.StatusText}"
+                                               Style="{StaticResource Caption}"
+                                               Margin="8,0,0,0"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- 内容区 -->
+                <ContentControl Grid.Column="1"
+                                Content="{Binding CurrentPage}"
+                                Margin="26,22,26,22" />
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

@@ -1,0 +1,359 @@
+<UserControl x:Class="FileKeeper.App.Views.SyncTaskEditView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:FileKeeper.App.Views"
+             xmlns:conv="clr-namespace:FileKeeper.App.Converters"
+             xmlns:h="clr-namespace:FileKeeper.App.Services"
+             xmlns:core="clr-namespace:FileKeeper.Core.Models;assembly=FileKeeper.Core">
+
+    <UserControl.RenderTransform>
+        <TranslateTransform Y="0" />
+    </UserControl.RenderTransform>
+
+    <UserControl.Triggers>
+        <EventTrigger RoutedEvent="Loaded">
+            <BeginStoryboard>
+                <Storyboard>
+                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                     From="0" To="1"
+                                     Duration="0:0:0.2" />
+                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                     From="10" To="0"
+                                     Duration="0:0:0.2" />
+                </Storyboard>
+            </BeginStoryboard>
+        </EventTrigger>
+    </UserControl.Triggers>
+
+    <UserControl.Resources>
+        <conv:EnumToBooleanConverter x:Key="ProtocolToBool" EnumType="{x:Type core:SyncProtocol}" />
+        <conv:EnumToVisibilityConverter x:Key="ProtocolToVis" EnumType="{x:Type core:SyncProtocol}" />
+        <conv:EnumToBooleanConverter x:Key="AuthToBool" EnumType="{x:Type core:SftpAuthMode}" />
+        <conv:EnumToBooleanConverter x:Key="FilterToBool" EnumType="{x:Type core:FileFilterMode}" />
+        <conv:EnumToVisibilityConverter x:Key="FilterToVis" EnumType="{x:Type core:FileFilterMode}" />
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:StringListConverter x:Key="StringList" />
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Margin="0,0,0,16">
+            <StackPanel Orientation="Horizontal">
+                <Button Style="{StaticResource BackButton}" Command="{Binding CancelCommand}" />
+                <TextBlock Text="{Binding EditorTitle}"
+                           Style="{StaticResource H1}"
+                           VerticalAlignment="Center"
+                           Margin="12,0,0,0" />
+            </StackPanel>
+
+            <CheckBox Content="启用此任务"
+                      Style="{StaticResource ToggleSwitch}"
+                      IsChecked="{Binding Enabled}"
+                      HorizontalAlignment="Right"
+                      VerticalAlignment="Center" />
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,10,0">
+            <StackPanel MaxWidth="860" HorizontalAlignment="Left">
+                <!-- 本地 -->
+                <Border Style="{StaticResource Section}" Padding="20">
+                    <StackPanel>
+                        <TextBlock Text="本地" Style="{StaticResource H2}" Margin="0,0,0,14" />
+
+                        <TextBlock Text="任务名称" Style="{StaticResource FieldLabel}" />
+                        <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                 Tag="例如：每天上传日志到服务器" />
+
+                        <TextBlock Text="本地目录" Style="{StaticResource FieldLabel}" Margin="0,16,0,0" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Text="{Binding LocalDirectory, UpdateSourceTrigger=PropertyChanged}"
+                                     Tag="选择要上传的目录" />
+                            <Button Grid.Column="1"
+                                    Content="浏览..."
+                                    Style="{StaticResource SecondaryButton}"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding BrowseLocalCommand}" />
+                        </Grid>
+
+                        <CheckBox Content="包含子目录"
+                                  IsChecked="{Binding IncludeSubDirectories}"
+                                  Margin="0,14,0,0" />
+
+                        <TextBlock Text="文件过滤" Style="{StaticResource FieldLabel}" Margin="0,16,0,0" />
+                        <Border Background="{StaticResource BgSubtleBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="7"
+                                Padding="3"
+                                HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton Content="全部文件"
+                                             Style="{StaticResource SegmentedItem}"
+                                             Height="30"
+                                             IsChecked="{Binding FilterMode, Converter={StaticResource FilterToBool}, ConverterParameter=All}" />
+                                <RadioButton Content="仅指定扩展名"
+                                             Style="{StaticResource SegmentedItem}"
+                                             Height="30"
+                                             IsChecked="{Binding FilterMode, Converter={StaticResource FilterToBool}, ConverterParameter=IncludeExtensions}" />
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Margin="0,12,0,0"
+                                    Visibility="{Binding FilterMode, Converter={StaticResource FilterToVis}, ConverterParameter=IncludeExtensions}">
+                            <TextBlock Text="扩展名，多个用逗号分隔" Style="{StaticResource FieldLabel}" />
+                            <TextBox Tag=".log, .zip"
+                                     Text="{Binding Extensions, Converter={StaticResource StringList}, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <TextBlock Text="排除的子目录，多个用逗号分隔"
+                                       Style="{StaticResource FieldLabel}"
+                                       Margin="0,12,0,0" />
+                            <TextBox Tag="temp"
+                                     Text="{Binding ExcludedDirectories, Converter={StaticResource StringList}, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- 服务器 -->
+                <Border Style="{StaticResource Section}" Padding="20" Margin="0,14,0,0">
+                    <StackPanel>
+                        <TextBlock Text="服务器" Style="{StaticResource H2}" Margin="0,0,0,14" />
+
+                        <TextBlock Text="协议" Style="{StaticResource FieldLabel}" />
+                        <Border Background="{StaticResource BgSubtleBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="7"
+                                Padding="3"
+                                HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton Content="SFTP"
+                                             Style="{StaticResource SegmentedItem}"
+                                             Height="30"
+                                             MinWidth="78"
+                                             IsChecked="{Binding Protocol, Converter={StaticResource ProtocolToBool}, ConverterParameter=Sftp}" />
+                                <RadioButton Content="FTP"
+                                             Style="{StaticResource SegmentedItem}"
+                                             Height="30"
+                                             MinWidth="78"
+                                             IsChecked="{Binding Protocol, Converter={StaticResource ProtocolToBool}, ConverterParameter=Ftp}" />
+                                <RadioButton Content="FTPS 显式"
+                                             Style="{StaticResource SegmentedItem}"
+                                             Height="30"
+                                             MinWidth="96"
+                                             IsChecked="{Binding Protocol, Converter={StaticResource ProtocolToBool}, ConverterParameter=FtpsExplicit}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Grid Margin="0,16,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="150" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel>
+                                <TextBlock Text="主机" Style="{StaticResource FieldLabel}" />
+                                <TextBox Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}"
+                                         Tag="例如 192.168.1.10 或 backup.example.com" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                                <TextBlock Text="端口" Style="{StaticResource FieldLabel}" />
+                                <TextBox Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}"
+                                         Tag="22" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="用户名" Style="{StaticResource FieldLabel}" Margin="0,16,0,0" />
+                        <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 认证 -->
+                <Border Style="{StaticResource Section}" Padding="20" Margin="0,14,0,0">
+                    <StackPanel>
+                        <TextBlock Text="认证" Style="{StaticResource H2}" Margin="0,0,0,14" />
+
+                        <!-- 私钥认证只对 SFTP 有意义 -->
+                        <StackPanel Visibility="{Binding Protocol, Converter={StaticResource ProtocolToVis}, ConverterParameter=Sftp}">
+                            <TextBlock Text="认证方式" Style="{StaticResource FieldLabel}" />
+                            <Border Background="{StaticResource BgSubtleBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="7"
+                                    Padding="3"
+                                    HorizontalAlignment="Left">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton Content="密码"
+                                                 Style="{StaticResource SegmentedItem}"
+                                                 Height="30"
+                                                 IsChecked="{Binding AuthMode, Converter={StaticResource AuthToBool}, ConverterParameter=Password}" />
+                                    <RadioButton Content="私钥文件"
+                                                 Style="{StaticResource SegmentedItem}"
+                                                 Height="30"
+                                                 IsChecked="{Binding AuthMode, Converter={StaticResource AuthToBool}, ConverterParameter=PrivateKey}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- 密码 -->
+                        <StackPanel Margin="0,14,0,0"
+                                    Visibility="{Binding IsPrivateKeyMode, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
+                            <TextBlock Text="密码" Style="{StaticResource FieldLabel}" />
+                            <PasswordBox h:PasswordBoxHelper.Attach="True"
+                                         h:PasswordBoxHelper.Password="{Binding Password, Mode=TwoWay}" />
+                            <TextBlock Text="{Binding PasswordStatusText}"
+                                       Style="{StaticResource Hint}"
+                                       Margin="0,6,0,0" />
+                        </StackPanel>
+
+                        <!-- 私钥 -->
+                        <StackPanel Margin="0,14,0,0"
+                                    Visibility="{Binding IsPrivateKeyMode, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="私钥文件路径" Style="{StaticResource FieldLabel}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding PrivateKeyPath, UpdateSourceTrigger=PropertyChanged}"
+                                         Tag="选择 PEM 或 OpenSSH 私钥" />
+                                <Button Grid.Column="1"
+                                        Content="浏览..."
+                                        Style="{StaticResource SecondaryButton}"
+                                        Margin="8,0,0,0"
+                                        Command="{Binding BrowseKeyCommand}" />
+                            </Grid>
+
+                            <TextBlock Text="私钥口令（可留空）" Style="{StaticResource FieldLabel}" Margin="0,12,0,0" />
+                            <PasswordBox h:PasswordBoxHelper.Attach="True"
+                                         h:PasswordBoxHelper.Password="{Binding Passphrase, Mode=TwoWay}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- 远端 -->
+                <Border Style="{StaticResource Section}" Padding="20" Margin="0,14,0,0">
+                    <StackPanel>
+                        <TextBlock Text="远端" Style="{StaticResource H2}" Margin="0,0,0,14" />
+
+                        <TextBlock Text="远端目录" Style="{StaticResource FieldLabel}" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Text="{Binding RemoteDirectory, UpdateSourceTrigger=PropertyChanged}"
+                                     Tag="/backup/logs" />
+                            <Button Grid.Column="1"
+                                    Content="测试连接"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding TestConnectionCommand}" />
+                        </Grid>
+
+                        <TextBlock Text="留空则上传到服务器的默认目录。目录不存在时会自动创建。"
+                                   Style="{StaticResource Hint}"
+                                   Margin="0,6,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 策略 -->
+                <Border Style="{StaticResource Section}" Padding="20" Margin="0,14,0,0">
+                    <StackPanel>
+                        <TextBlock Text="同步策略" Style="{StaticResource H2}" Margin="0,0,0,14" />
+
+                        <CheckBox Content="增量同步（只上传新增或已变更的文件）"
+                                  Style="{StaticResource ToggleSwitch}"
+                                  IsChecked="{Binding IncrementalSync}" />
+
+                        <CheckBox Content="保留本地目录结构"
+                                  Style="{StaticResource ToggleSwitch}"
+                                  IsChecked="{Binding PreserveDirectoryStructure}"
+                                  Margin="0,12,0,0" />
+
+                        <Border Style="{StaticResource DangerBar}" Margin="0,16,0,0">
+                            <StackPanel>
+                                <CheckBox Content="上传成功后删除本地源文件"
+                                          Style="{StaticResource ToggleSwitch}"
+                                          IsChecked="{Binding DeleteLocalAfterUpload}" />
+                                <TextBlock Text="源文件将被永久删除，不可恢复。请先确认上传稳定后再启用。"
+                                           Style="{StaticResource Caption}"
+                                           Foreground="#8A0C16"
+                                           Margin="0,8,0,0" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- 高级 -->
+                <Border Style="{StaticResource Section}" Padding="20" Margin="0,14,0,0">
+                    <StackPanel>
+                        <Expander>
+                            <Expander.Header>
+                                <TextBlock Text="高级选项" Style="{StaticResource H2}" />
+                            </Expander.Header>
+
+                            <Grid Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="160" />
+                                    <ColumnDefinition Width="160" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel>
+                                    <TextBlock Text="超时（秒）" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Width="120"
+                                             HorizontalAlignment="Left"
+                                             Text="{Binding TimeoutSeconds, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="失败重试次数" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Width="120"
+                                             HorizontalAlignment="Left"
+                                             Text="{Binding RetryCount, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                            </Grid>
+                        </Expander>
+                    </StackPanel>
+                </Border>
+
+                <!-- 调度 -->
+                <Border Style="{StaticResource Section}" Padding="20" Margin="0,14,0,0">
+                    <StackPanel>
+                        <TextBlock Text="调度" Style="{StaticResource H2}" Margin="0,0,0,14" />
+                        <views:ScheduleEditorControl DataContext="{Binding Schedule}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="0,12,0,0"
+                Margin="0,14,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="取消"
+                        Style="{StaticResource SecondaryButton}"
+                        Command="{Binding CancelCommand}" />
+                <Button Content="立即同步"
+                        Style="{StaticResource SecondaryButton}"
+                        Margin="8,0,0,0"
+                        Command="{Binding RunCommand}" />
+                <Button Content="保存"
+                        Style="{StaticResource PrimaryButton}"
+                        Margin="8,0,0,0"
+                        Command="{Binding SaveCommand}" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

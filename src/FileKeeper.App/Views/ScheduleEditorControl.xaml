@@ -1,0 +1,116 @@
+<UserControl x:Class="FileKeeper.App.Views.ScheduleEditorControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:FileKeeper.App.ViewModels"
+             xmlns:conv="clr-namespace:FileKeeper.App.Converters"
+             xmlns:core="clr-namespace:FileKeeper.Core.Models;assembly=FileKeeper.Core">
+
+    <UserControl.Resources>
+        <conv:EnumToBooleanConverter x:Key="FreqToBool" EnumType="{x:Type core:ScheduleFrequency}" />
+        <conv:EnumToVisibilityConverter x:Key="FreqToVis" EnumType="{x:Type core:ScheduleFrequency}" />
+        <conv:TimeOnlyTextConverter x:Key="TimeOnlyText" />
+    </UserControl.Resources>
+
+    <StackPanel>
+        <!-- 频率 -->
+        <TextBlock Text="执行频率" Style="{StaticResource FieldLabel}" />
+        <Border Background="{StaticResource BgSubtleBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="7"
+                Padding="3"
+                HorizontalAlignment="Left">
+            <StackPanel Orientation="Horizontal">
+                <RadioButton Content="每天"
+                             Style="{StaticResource SegmentedItem}"
+                             Height="30"
+                             IsChecked="{Binding Frequency, Converter={StaticResource FreqToBool}, ConverterParameter=Daily}" />
+                <RadioButton Content="每周"
+                             Style="{StaticResource SegmentedItem}"
+                             Height="30"
+                             IsChecked="{Binding Frequency, Converter={StaticResource FreqToBool}, ConverterParameter=Weekly}" />
+                <RadioButton Content="每月"
+                             Style="{StaticResource SegmentedItem}"
+                             Height="30"
+                             IsChecked="{Binding Frequency, Converter={StaticResource FreqToBool}, ConverterParameter=Monthly}" />
+            </StackPanel>
+        </Border>
+
+        <!-- 周几 -->
+        <StackPanel Margin="0,14,0,0"
+                    Visibility="{Binding Frequency, Converter={StaticResource FreqToVis}, ConverterParameter=Weekly}">
+            <TextBlock Text="选择周几" Style="{StaticResource FieldLabel}" />
+            <ItemsControl ItemsSource="{Binding WeekdayItems}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:ToggleItemViewModel}">
+                        <ToggleButton Content="{Binding Label}"
+                                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                      Style="{StaticResource PillToggle}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <!-- 每月几号 -->
+        <StackPanel Margin="0,14,0,0"
+                    Visibility="{Binding Frequency, Converter={StaticResource FreqToVis}, ConverterParameter=Monthly}">
+            <TextBlock Text="选择日期（若当月不足该天数，自动取当月最后一天）"
+                       Style="{StaticResource FieldLabel}" />
+            <ItemsControl ItemsSource="{Binding MonthDayItems}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:ToggleItemViewModel}">
+                        <ToggleButton Content="{Binding Label}"
+                                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                      Style="{StaticResource PillToggle}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <!-- 时刻 + 补跑 -->
+        <Grid Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel>
+                <TextBlock Text="执行时刻" Style="{StaticResource FieldLabel}" />
+                <TextBox Width="96"
+                         HorizontalAlignment="Left"
+                         Tag="02:00"
+                         Text="{Binding TimeOfDay, Converter={StaticResource TimeOnlyText}}" />
+            </StackPanel>
+
+            <CheckBox Grid.Column="1"
+                      Content="服务未运行时错过则补跑"
+                      Style="{StaticResource ToggleSwitch}"
+                      IsChecked="{Binding RunIfMissed}"
+                      VerticalAlignment="Bottom"
+                      Margin="28,0,0,6" />
+        </Grid>
+
+        <!-- 预览 -->
+        <Border Style="{StaticResource InfoBar}" Margin="0,16,0,0">
+            <StackPanel>
+                <TextBlock Text="{Binding DescribeText}"
+                           Style="{StaticResource Caption}"
+                           Foreground="{StaticResource PrimaryBrush}" />
+                <TextBlock Text="{Binding NextRunPreviewText}"
+                           Style="{StaticResource Caption}"
+                           Foreground="{StaticResource PrimaryBrush}"
+                           Margin="0,3,0,0" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

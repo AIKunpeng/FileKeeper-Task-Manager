@@ -1,0 +1,71 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>FileKeeper.Setup</RootNamespace>
+    <AssemblyName>FileKeeper.Setup</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <!--
+      必须锁定 x64 进程：32 位进程写 HKLM 会被重定向到 WOW6432Node，
+      导致系统「添加或删除程序」里看不到卸载项。裸引 RuntimeIdentifier 即可让
+      dll 与依赖都按 x64 产出（PlatformTarget 只影响自身程序集）。
+    -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PlatformTarget>x64</PlatformTarget>
+
+    <!--
+      单文件发布：payload 是内嵌资源、安装时再释放到磁盘，
+      所以原生依赖不需要留在 exe 旁边，可以安全收敛成一个 exe。
+    -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <DebugType>embedded</DebugType>
+
+    <!-- 安装路径与日志目录的选择窗体基于 WinForms：选文件夹只有它提供，
+         为这一个对话框引入整套 WPF 运行时不划算（安装器是单文件发布） -->
+    <UseWindowsForms>true</UseWindowsForms>
+
+    <!-- 写 Program Files、HKLM、注册服务都需要提权，安装器本身必须是提权进程；
+         注意这与 App 的 asInvoker 不冲突——日常使用的界面端依然不提权 -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\FileKeeper.App\Assets\app.ico</ApplicationIcon>
+    <Version>1.0.0</Version>
+    <Product>FileKeeper 任务管家</Product>
+    <Company>FileKeeper</Company>
+    <AssemblyTitle>FileKeeper 安装程序</AssemblyTitle>
+  </PropertyGroup>
+
+  <!--
+    启用 UseWindowsForms 后，隐式全局 using 会被整体替换成 WinForms 那一套：
+    它不导入 System.IO，却全局导入 System.Windows.Forms 与 System.Drawing。
+    安装器大量使用 File / Directory / Path，缺 System.IO 会整片报错。
+    这里把 System.IO 补回来并撤掉 Forms / Drawing 的全局引用，
+    真正需要它们的窗体各自显式 using（与 App 项目保持同一套做法）。
+  -->
+  <ItemGroup>
+    <Using Include="System.IO" />
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FileKeeper.Core\FileKeeper.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      payload.zip 由 scripts\publish.ps1 在「发布 App / Service 之后」生成，
+      因此构建时它可能还不存在：用 Exists 条件让首次编译不至于报错，
+      缺失的情况由 PayloadExtractor 在运行期给出明确提示。
+      LogicalName 固定住资源名，不受文件路径影响。
+    -->
+    <EmbeddedResource Include="payload\payload.zip"
+                      LogicalName="payload.zip"
+                      Condition="Exists('$(MSBuildProjectDirectory)\payload\payload.zip')" />
+  </ItemGroup>
+
+</Project>

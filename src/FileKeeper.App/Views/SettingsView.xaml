@@ -1,0 +1,323 @@
+<UserControl x:Class="FileKeeper.App.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:FileKeeper.App.Converters"
+             xmlns:svc="clr-namespace:FileKeeper.App.Services">
+
+    <UserControl.RenderTransform>
+        <TranslateTransform Y="0" />
+    </UserControl.RenderTransform>
+
+    <UserControl.Triggers>
+        <EventTrigger RoutedEvent="Loaded">
+            <BeginStoryboard>
+                <Storyboard>
+                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                     From="0" To="1"
+                                     Duration="0:0:0.2" />
+                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                     From="10" To="0"
+                                     Duration="0:0:0.2" />
+                </Storyboard>
+            </BeginStoryboard>
+        </EventTrigger>
+    </UserControl.Triggers>
+
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- 状态徽标配色 -->
+        <Style x:Key="StatusBadge" TargetType="Border" BasedOn="{StaticResource Tag}">
+            <Setter Property="Padding" Value="12,5" />
+            <Setter Property="Background" Value="{StaticResource NeutralTintBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ServiceStatus.State}"
+                             Value="{x:Static svc:ServiceStateKind.Running}">
+                    <Setter Property="Background" Value="{StaticResource SuccessTintBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding ServiceStatus.State}"
+                             Value="{x:Static svc:ServiceStateKind.NotInstalled}">
+                    <Setter Property="Background" Value="{StaticResource WarningTintBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="StatusBadgeText" TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ServiceStatus.State}"
+                             Value="{x:Static svc:ServiceStateKind.Running}">
+                    <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding ServiceStatus.State}"
+                             Value="{x:Static svc:ServiceStateKind.NotInstalled}">
+                    <Setter Property="Foreground" Value="{StaticResource WarningBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 按钮按服务状态显隐，避免给出当前不可用的操作 -->
+        <Style x:Key="InstallButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ServiceStatus.State}"
+                             Value="{x:Static svc:ServiceStateKind.NotInstalled}">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="UninstallButton" TargetType="Button" BasedOn="{StaticResource DangerButton}">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ServiceStatus.State}"
+                             Value="{x:Static svc:ServiceStateKind.Running}">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding ServiceStatus.State}"
+                             Value="{x:Static svc:ServiceStateKind.Stopped}">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding ServiceStatus.State}"
+                             Value="{x:Static svc:ServiceStateKind.Unknown}">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="StartButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ServiceStatus.State}"
+                             Value="{x:Static svc:ServiceStateKind.Stopped}">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="StopButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ServiceStatus.State}"
+                             Value="{x:Static svc:ServiceStateKind.Running}">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,10,0">
+        <StackPanel MaxWidth="860" HorizontalAlignment="Left">
+            <!-- 服务 -->
+            <Border Style="{StaticResource Section}" Padding="20">
+                <StackPanel>
+                    <TextBlock Text="服务" Style="{StaticResource H2}" Margin="0,0,0,14" />
+
+                    <Border Background="{StaticResource BgSubtleBrush}" CornerRadius="6" Padding="16,14">
+                        <Grid>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Style="{StaticResource StatusBadge}">
+                                    <TextBlock Style="{StaticResource StatusBadgeText}"
+                                               Text="{Binding ServiceStatus.StatusText}" />
+                                </Border>
+                                <TextBlock Text="定时任务由该服务在后台执行"
+                                           Style="{StaticResource Caption}"
+                                           VerticalAlignment="Center"
+                                           Margin="14,0,0,0" />
+                            </StackPanel>
+
+                            <ContentControl Style="{StaticResource BusyRing}"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                            Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                        </Grid>
+                    </Border>
+
+                    <TextBlock Text="{Binding ElevationHint}"
+                               Style="{StaticResource Hint}"
+                               Margin="0,10,0,0" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <Button Content="安装服务"
+                                Style="{StaticResource InstallButton}"
+                                Command="{Binding InstallCommand}" />
+                        <Button Content="卸载服务"
+                                Style="{StaticResource UninstallButton}"
+                                Command="{Binding UninstallCommand}"
+                                Margin="8,0,0,0" />
+                        <Button Content="启动"
+                                Style="{StaticResource StartButton}"
+                                Command="{Binding StartServiceCommand}"
+                                Margin="8,0,0,0" />
+                        <Button Content="停止"
+                                Style="{StaticResource StopButton}"
+                                Command="{Binding StopServiceCommand}"
+                                Margin="8,0,0,0" />
+                    </StackPanel>
+
+                    <Border Style="{StaticResource InfoBar}" Margin="0,14,0,0">
+                        <TextBlock Text="服务随系统启动，开机即运行，无需登录。安装后可在系统服务中查看「FileKeeper 任务管家服务」。"
+                                   Style="{StaticResource Caption}"
+                                   Foreground="{StaticResource PrimaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- 引擎 -->
+            <Border Style="{StaticResource Section}" Padding="20" Margin="0,14,0,0">
+                <StackPanel>
+                    <TextBlock Text="压缩引擎" Style="{StaticResource H2}" Margin="0,0,0,14" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="内嵌 7z 库" Style="{StaticResource Caption}" />
+                        <TextBlock Grid.Column="1" Text="{Binding EmbeddedLibraryText}" Style="{StaticResource Caption}"
+                                   TextWrapping="Wrap" />
+
+                        <TextBlock Grid.Row="1" Text="7z 命令行" Style="{StaticResource Caption}" Margin="0,8,0,0" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding CliText}" Style="{StaticResource Caption}"
+                                   Margin="0,8,0,0" TextWrapping="Wrap" />
+
+                        <TextBlock Grid.Row="2" Text="WinRAR" Style="{StaticResource Caption}" Margin="0,8,0,0" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding WinRarText}" Style="{StaticResource Caption}"
+                                   Margin="0,8,0,0" TextWrapping="Wrap" />
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <Border Style="{StaticResource Tag}"
+                                Background="{StaticResource SuccessTintBrush}"
+                                Visibility="{Binding CanCreateRar, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="可创建 RAR" Style="{StaticResource Caption}"
+                                       Foreground="{StaticResource SuccessBrush}" />
+                        </Border>
+                        <Border Style="{StaticResource Tag}"
+                                Background="{StaticResource WarningTintBrush}"
+                                Visibility="{Binding CanCreateRar, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
+                            <TextBlock Text="不可创建 RAR" Style="{StaticResource Caption}"
+                                       Foreground="{StaticResource WarningBrush}" />
+                        </Border>
+
+                        <TextBlock Text="RAR 是商业格式，创建 RAR 需要系统安装 WinRAR"
+                                   Style="{StaticResource Hint}"
+                                   VerticalAlignment="Center"
+                                   Margin="12,0,0,0" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- 通用 -->
+            <Border Style="{StaticResource Section}" Padding="20" Margin="0,14,0,0">
+                <StackPanel>
+                    <TextBlock Text="通用" Style="{StaticResource H2}" Margin="0,0,0,14" />
+
+                    <TextBlock Text="日志保留天数" Style="{StaticResource FieldLabel}" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Width="110"
+                                 Text="{Binding LogRetentionDays, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="天"
+                                   Style="{StaticResource Caption}"
+                                   VerticalAlignment="Center"
+                                   Margin="8,0,0,0" />
+                    </StackPanel>
+
+                    <!-- 日志目录：留空即默认位置，改动后历史日志会自动搬过去 -->
+                    <TextBlock Text="日志目录" Style="{StaticResource FieldLabel}" Margin="0,16,0,0" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox Text="{Binding LogDirectory, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Grid.Column="1"
+                                Content="浏览"
+                                Style="{StaticResource SecondaryButton}"
+                                Margin="8,0,0,0"
+                                Command="{Binding BrowseLogDirectoryCommand}" />
+                    </Grid>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0">
+                        <Run Text="{Binding LogDirectoryHint, Mode=OneWay}" />
+                        <LineBreak />
+                        <Run Text="当前生效：" />
+                        <Run Text="{Binding LogsPath, Mode=OneWay}" />
+                    </TextBlock>
+
+                    <CheckBox Content="关闭窗口时最小化到系统托盘"
+                              Style="{StaticResource ToggleSwitch}"
+                              IsChecked="{Binding MinimizeToTrayOnClose}"
+                              Margin="0,16,0,0" />
+
+                    <Button Content="保存通用设置"
+                            Style="{StaticResource PrimaryButton}"
+                            HorizontalAlignment="Left"
+                            Margin="0,18,0,0"
+                            Command="{Binding SaveGeneralCommand}" />
+                </StackPanel>
+            </Border>
+
+            <!-- 关于 -->
+            <Border Style="{StaticResource Section}" Padding="20" Margin="0,14,0,0">
+                <StackPanel>
+                    <TextBlock Text="关于" Style="{StaticResource H2}" Margin="0,0,0,14" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="版本" Style="{StaticResource Caption}" />
+                        <TextBlock Grid.Column="1" Text="{Binding Version}" Style="{StaticResource Caption}" />
+
+                        <TextBlock Grid.Row="1" Text="配置文件" Style="{StaticResource Caption}" Margin="0,8,0,0" />
+                        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,0">
+                            <TextBlock Text="{Binding ConfigPath}" Style="{StaticResource Caption}"
+                                       TextTrimming="CharacterEllipsis" MaxWidth="480" />
+                            <Button Content="打开"
+                                    Style="{StaticResource LinkButton}"
+                                    Command="{Binding OpenConfigFolderCommand}"
+                                    Margin="10,0,0,0" />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="2" Text="日志目录" Style="{StaticResource Caption}" Margin="0,8,0,0" />
+                        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,0">
+                            <TextBlock Text="{Binding LogsPath}" Style="{StaticResource Caption}"
+                                       TextTrimming="CharacterEllipsis" MaxWidth="480" />
+                            <Button Content="打开"
+                                    Style="{StaticResource LinkButton}"
+                                    Command="{Binding OpenLogsFolderCommand}"
+                                    Margin="10,0,0,0" />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="3" Text="版权" Style="{StaticResource Caption}" Margin="0,8,0,0" />
+                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Copyright}"
+                                   Style="{StaticResource Caption}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                    </Grid>
+
+                    <Border Style="{StaticResource InfoBar}" Margin="0,16,0,0">
+                        <TextBlock Text="配置与日志存放在 ProgramData 下，界面端与后台服务通过配置文件协同，改动即时生效。"
+                                   Style="{StaticResource Caption}"
+                                   Foreground="{StaticResource PrimaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
