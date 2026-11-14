@@ -119,6 +119,13 @@
                                           RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 CommandParameter="{Binding}" />
 
+                        <Button Content="&#xE8C8;"
+                                ToolTip="复制任务（生成一份相同配置的副本）"
+                                Style="{StaticResource SmallIconButton}"
+                                Command="{Binding DataContext.CopyTaskCommand,
+                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}" />
+
                         <Button Content="&#xE74D;"
                                 ToolTip="删除"
                                 Style="{StaticResource SmallIconButton}"
@@ -216,9 +223,23 @@
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Button Content="导入"
+                        Style="{StaticResource SecondaryButton}"
+                        MinWidth="72"
+                        ToolTip="从导出文件导入任务"
+                        Command="{Binding ImportTasksCommand}" />
+
+                <Button Content="导出"
+                        Style="{StaticResource SecondaryButton}"
+                        MinWidth="72"
+                        Margin="10,0,0,0"
+                        ToolTip="导出任务到文件，默认勾选当前显示的任务，可手动调整"
+                        Command="{Binding ExportTasksCommand}" />
+
                 <Button Content="{Binding RunAllButtonText}"
                         Style="{StaticResource SecondaryButton}"
                         MinWidth="96"
+                        Margin="10,0,0,0"
                         Command="{Binding RunVisibleCommand}" />
             </StackPanel>
         </Grid>

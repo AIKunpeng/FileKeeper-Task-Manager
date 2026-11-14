@@ -1,3 +1,4 @@
+using FileKeeper.Core.Configuration;
 using FileKeeper.Core.Engines;
 using FileKeeper.Core.Execution;
 using FileKeeper.Core.Logging;
@@ -29,6 +30,7 @@ public static class Program
             await CleanupSmokeAsync(root, logger);
             await SyncSmokeAsync(root, logger);
             await ProgramSmokeAsync(root, logger);
+            TransferSmokeAsync(root);
         }
         finally
         {
@@ -198,6 +200,90 @@ public static class Program
 
         Check(hoursResult.Status == TaskRunStatus.Success, "小时阈值清理执行成功", $"状态={hoursResult.Status}，{hoursResult.ErrorMessage}");
         Check(!File.Exists(recentish), "2 小时前的文件被 1 小时阈值删除");
+    }
+
+    // ==================== 任务导入导出 ====================
+
+    private static void TransferSmokeAsync(string root)
+    {
+        Console.WriteLine();
+        Console.WriteLine("【五、任务导入导出（序列化回环）】");
+
+        var path = Path.Combine(root, "export.json");
+        var compression = new CompressionTask
+        {
+            Name = "冒烟-导出压缩",
+            SourceDirectory = Path.Combine(root, "src-a"),
+            OutputDirectory = Path.Combine(root, "out-a"),
+            CompressionLevel = 6,
+            Schedule = new ScheduleConfig
+            {
+                Frequency = ScheduleFrequency.Daily,
+                TimeOfDay = new TimeOnly(2, 0),
+                NextRunUtc = DateTimeOffset.Now.AddHours(1)
+            }
+        };
+
+        var sync = new SyncTask
+        {
+            Name = "冒烟-导出同步",
+            Host = "192.0.2.10",
+            Port = 22,
+            Username = "smoke",
+            // 经 SyncCredential 代理写入 DPAPI 密文，验证导出文件不含明文
+            Credential = new SyncCredential { Password = "smoke-secret" }
+        };
+
+        TaskTransferService.Export(path, new[]
+        {
+            (TaskKind.Compression, (IScheduledTask)compression),
+            (TaskKind.Sync, (IScheduledTask)sync)
+        });
+
+        Check(File.Exists(path), "导出文件已生成", path);
+
+        var fileText = File.ReadAllText(path);
+
+        Check(!fileText.Contains("smoke-secret", StringComparison.Ordinal), "导出文件不包含明文密码");
+
+        var imported = TaskTransferService.Import(path);
+
+        Check(imported.Count == 2, "导入任务数量正确", $"实际 {imported.Count}");
+        Check(imported[0].Kind == TaskKind.Compression && imported[1].Kind == TaskKind.Sync, "导入任务类型正确");
+
+        var importedCompression = (CompressionTask)imported[0].Task;
+
+        Check(importedCompression.Name == compression.Name &&
+              importedCompression.SourceDirectory == compression.SourceDirectory &&
+              importedCompression.CompressionLevel == 6 &&
+              importedCompression.Schedule.TimeOfDay == new TimeOnly(2, 0),
+            "压缩任务字段完整还原",
+            $"名称={importedCompression.Name}");
+
+        var importedSync = (SyncTask)imported[1].Task;
+
+        Check(importedSync.Host == "192.0.2.10" && importedSync.Credential.Password == "smoke-secret",
+            "同步任务凭据经密文回环后仍可解密",
+            $"Host={importedSync.Host}，密码解密={(importedSync.Credential.Password is null ? "失败" : "成功")}");
+
+        // 非法版本号应被拒绝而不是静默导入
+        var badPath = Path.Combine(root, "bad.json");
+
+        File.WriteAllText(badPath, "{\"version\":99,\"tasks\":[]}");
+
+        try
+        {
+            TaskTransferService.Import(badPath);
+            Check(false, "非法版本号被拒绝");
+        }
+        catch (InvalidDataException)
+        {
+            Check(true, "非法版本号被拒绝");
+        }
+        catch (Exception ex)
+        {
+            Check(false, "非法版本号被拒绝", $"抛出了 {ex.GetType().Name}");
+        }
     }
 
     // ==================== 同步 ====================

@@ -16,7 +16,11 @@ public sealed class ConfigStore : IDisposable
     private const int ReadRetryCount = 3;
     private const int ReadRetryDelayMilliseconds = 150;
 
-    private static readonly JsonSerializerOptions SerializerOptions = new()
+    /// <summary>
+    /// 配置序列化选项。任务导入导出与 config.json 保持同一套约定
+    /// （camelCase 命名 + 枚举字符串），导入文件可直接人工审阅。
+    /// </summary>
+    public static readonly JsonSerializerOptions SerializerOptions = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

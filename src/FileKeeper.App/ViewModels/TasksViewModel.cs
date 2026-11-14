@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FileKeeper.App.Services;
+using FileKeeper.App.Views;
 using FileKeeper.Core.Configuration;
 using FileKeeper.Core.Logging;
 using FileKeeper.Core.Models;
@@ -220,6 +222,280 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
                 break;
         }
     }
+
+    /// <summary>
+    /// 复制任务：深拷贝当前任务的全部配置，换新 Id、名称追加「副本」，
+    /// 调度按当前时间重新推算（复制的任务不该继承「上次执行」的历史排期）。
+    /// </summary>
+    [RelayCommand]
+    private void CopyTask(TaskItemViewModel item)
+    {
+        var model = FindModel(item);
+
+        if (model is null)
+        {
+            return;
+        }
+
+        _config.Update(config =>
+        {
+            switch (model)
+            {
+                case CompressionTask compression:
+                {
+                    var copy = compression.Clone();
+                    copy.Id = Guid.NewGuid();
+                    copy.Name = UniqueName(compression.Name, config.CompressionTasks.Select(t => t.Name));
+                    ResetSchedule(copy.Schedule);
+                    config.CompressionTasks.Add(copy);
+                    break;
+                }
+
+                case CleanupTask cleanup:
+                {
+                    var copy = cleanup.Clone();
+                    copy.Id = Guid.NewGuid();
+                    copy.Name = UniqueName(cleanup.Name, config.CleanupTasks.Select(t => t.Name));
+                    ResetSchedule(copy.Schedule);
+                    config.CleanupTasks.Add(copy);
+                    break;
+                }
+
+                case SyncTask sync:
+                {
+                    var copy = sync.Clone();
+                    copy.Id = Guid.NewGuid();
+                    copy.Name = UniqueName(sync.Name, config.SyncTasks.Select(t => t.Name));
+                    ResetSchedule(copy.Schedule);
+                    config.SyncTasks.Add(copy);
+                    break;
+                }
+
+                case ProgramTask program:
+                {
+                    var copy = program.Clone();
+                    copy.Id = Guid.NewGuid();
+                    copy.Name = UniqueName(program.Name, config.ProgramTasks.Select(t => t.Name));
+                    ResetSchedule(copy.Schedule);
+                    config.ProgramTasks.Add(copy);
+                    break;
+                }
+            }
+        });
+
+        Refresh();
+    }
+
+    /// <summary>复制/导入产生的任务：清掉历史执行记录，按当前时间重新推算下次执行</summary>
+    private static void ResetSchedule(ScheduleConfig schedule)
+    {
+        schedule.LastRunUtc = null;
+        schedule.NextRunUtc = ScheduleCalculator.ComputeNextRunUtc(schedule, DateTimeOffset.Now);
+    }
+
+    /// <summary>生成不重名：依次尝试「原名 副本」「原名 副本 2」……</summary>
+    private static string UniqueName(string original, IEnumerable<string> existing)
+    {
+        var taken = new HashSet<string>(existing, StringComparer.Ordinal);
+
+        if (!taken.Contains(original))
+        {
+            return original;
+        }
+
+        for (var suffix = 1; ; suffix++)
+        {
+            var candidate = suffix == 1 ? $"{original} 副本" : $"{original} 副本 {suffix}";
+
+            if (!taken.Contains(candidate))
+            {
+                return candidate;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 导出任务：默认勾选当前视图显示的任务（选中压缩分区则只勾压缩任务），
+    /// 弹出多选框后可手动增减，最终写入一个 JSON 文件。
+    /// </summary>
+    [RelayCommand]
+    private void ExportTasks()
+    {
+        var candidates = CollectAll().ToList();
+
+        if (candidates.Count == 0)
+        {
+            _dialogs.ShowMessage("没有可导出的任务", "当前还没有任务。请先创建任务再导出。");
+            return;
+        }
+
+        // 预勾选 = 当前视图显示的任务：选中某分区时只勾该分区，全部显示时勾全部
+        var items = new ObservableCollection<SelectionItem>(
+            candidates.Select(t => new SelectionItem
+            {
+                Group = $"{TaskKindText.For(t.Kind)}任务",
+                Title = t.Task.Name,
+                SubText = t.Task.Enabled ? "已启用" : "已禁用",
+                Tag = t.Task.Id,
+                IsChecked = ActiveFilter is null || t.Kind == ActiveFilter
+            }));
+
+        var selected = SelectForExport(items);
+
+        if (selected.Count == 0)
+        {
+            return;
+        }
+
+        var filterKind = ActiveFilter;
+        var defaultName = filterKind is null
+            ? $"FileKeeper任务导出_{DateTime.Now:yyyyMMdd-HHmmss}.json"
+            : $"FileKeeper{TaskKindText.For(filterKind.Value)}任务导出_{DateTime.Now:yyyyMMdd-HHmmss}.json";
+
+        var path = _dialogs.SaveFile("任务导出文件 (*.json)|*.json|所有文件 (*.*)|*.*", fileName: defaultName);
+
+        if (path is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var toExport = candidates
+                .Where(t => selected.Contains(t.Task.Id))
+                .Select(t => (t.Kind, t.Task));
+
+            TaskTransferService.Export(path, toExport);
+
+            _dialogs.ShowMessage(
+                "导出完成",
+                $"已导出 {selected.Count} 个任务到：\n{path}\n\n" +
+                "注意：同步任务的密码以加密形式保存，导出到其他电脑后需要重新输入；压缩任务的 ZIP 密码为明文，请妥善保管导出文件。");
+        }
+        catch (Exception ex)
+        {
+            _dialogs.ShowMessage("导出失败", ex.Message);
+        }
+    }
+
+    /// <summary>弹出多选框，返回被勾选的任务 Id 集合；取消时返回空集合</summary>
+    private IReadOnlySet<Guid> SelectForExport(ObservableCollection<SelectionItem> items)
+    {
+        var owner = App.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive) ?? App.Current.MainWindow;
+
+        var confirmed = ExportSelectDialog.Show(owner, "导出任务", "选择要导出的任务：", "导出", items);
+
+        if (!confirmed)
+        {
+            return new HashSet<Guid>();
+        }
+
+        return items.Where(i => i.IsChecked).Select(i => (Guid)i.Tag).ToHashSet();
+    }
+
+    /// <summary>
+    /// 导入任务：读取导出文件，换新 Id（并给重名任务追加「导入」后缀）后并入现有配置。
+    /// 调度按当前时间重新推算，不沿用文件里的历史排期。
+    /// </summary>
+    [RelayCommand]
+    private void ImportTasks()
+    {
+        var path = _dialogs.OpenFile("任务导出文件 (*.json)|*.json|所有文件 (*.*)|*.*");
+
+        if (path is null)
+        {
+            return;
+        }
+
+        IReadOnlyList<TaskImportItem> imported;
+
+        try
+        {
+            imported = TaskTransferService.Import(path);
+        }
+        catch (Exception ex)
+        {
+            _dialogs.ShowMessage("导入失败", $"无法读取导出文件：\n{ex.Message}");
+            return;
+        }
+
+        var counts = imported.GroupBy(i => i.Kind)
+            .Select(g => $"{TaskKindText.For(g.Key)} {g.Count()}")
+            .ToList();
+
+        var confirmed = _dialogs.Confirm(
+            "导入任务",
+            $"文件中包含 {imported.Count} 个任务（{string.Join("、", counts)}）。",
+            "导入",
+            detail: "导入的任务会获得新编号并与现有任务合并；与现有任务同名的会追加「导入」后缀。导入后请核对路径、服务器地址等设置在本机是否有效。");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        try
+        {
+            _config.Update(config =>
+            {
+                foreach (var item in imported)
+                {
+                    AdoptImported(config, item);
+                }
+            });
+
+            Refresh();
+        }
+        catch (Exception ex)
+        {
+            _dialogs.ShowMessage("导入失败", ex.Message);
+            return;
+        }
+
+        _dialogs.ShowMessage("导入完成", $"已导入 {imported.Count} 个任务。");
+    }
+
+    /// <summary>把一个导入任务并入配置：换新 Id、避免重名、重新推算调度</summary>
+    private static void AdoptImported(AppConfig config, TaskImportItem item)
+    {
+        switch (item.Task)
+        {
+            case CompressionTask compression:
+                compression.Id = Guid.NewGuid();
+                compression.Name = UniqueName(compression.Name, config.CompressionTasks.Select(t => t.Name));
+                ResetSchedule(compression.Schedule);
+                config.CompressionTasks.Add(compression);
+                break;
+
+            case CleanupTask cleanup:
+                cleanup.Id = Guid.NewGuid();
+                cleanup.Name = UniqueName(cleanup.Name, config.CleanupTasks.Select(t => t.Name));
+                ResetSchedule(cleanup.Schedule);
+                config.CleanupTasks.Add(cleanup);
+                break;
+
+            case SyncTask sync:
+                sync.Id = Guid.NewGuid();
+                sync.Name = UniqueName(sync.Name, config.SyncTasks.Select(t => t.Name));
+                ResetSchedule(sync.Schedule);
+                config.SyncTasks.Add(sync);
+                break;
+
+            case ProgramTask program:
+                program.Id = Guid.NewGuid();
+                program.Name = UniqueName(program.Name, config.ProgramTasks.Select(t => t.Name));
+                ResetSchedule(program.Schedule);
+                config.ProgramTasks.Add(program);
+                break;
+        }
+    }
+
+    /// <summary>收集当前配置里的全部任务，按压缩、清理、同步、程序的顺序</summary>
+    private IEnumerable<(TaskKind Kind, IScheduledTask Task)> CollectAll() =>
+        _config.Current.CompressionTasks.Select(t => (TaskKind.Compression, (IScheduledTask)t))
+            .Concat(_config.Current.CleanupTasks.Select(t => (TaskKind.Cleanup, (IScheduledTask)t)))
+            .Concat(_config.Current.SyncTasks.Select(t => (TaskKind.Sync, (IScheduledTask)t)))
+            .Concat(_config.Current.ProgramTasks.Select(t => (TaskKind.Program, (IScheduledTask)t)));
 
     [RelayCommand]
     private void Delete(TaskItemViewModel item)

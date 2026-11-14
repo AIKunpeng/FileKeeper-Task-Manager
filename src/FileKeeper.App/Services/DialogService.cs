@@ -22,6 +22,9 @@ public interface IDialogService
     /// <summary>选择文件，取消时返回 null</summary>
     string? OpenFile(string filter, string? initialDirectory = null);
 
+    /// <summary>保存文件对话框（可设默认文件名），取消时返回 null</summary>
+    string? SaveFile(string filter, string? initialDirectory = null, string? fileName = null);
+
     /// <summary>危险操作确认。detail 非空时展示红色警示条。</summary>
     bool Confirm(string title, string message, string confirmText, string? detail = null, bool isDanger = false);
 
@@ -51,6 +54,23 @@ public sealed class DialogService : IDialogService
     public string? OpenFile(string filter, string? initialDirectory = null)
     {
         var dialog = new OpenFileDialog { Filter = filter, CheckFileExists = true };
+
+        if (!string.IsNullOrWhiteSpace(initialDirectory) && Directory.Exists(initialDirectory))
+        {
+            dialog.InitialDirectory = initialDirectory;
+        }
+
+        return dialog.ShowDialog() == true ? dialog.FileName : null;
+    }
+
+    public string? SaveFile(string filter, string? initialDirectory = null, string? fileName = null)
+    {
+        var dialog = new SaveFileDialog { Filter = filter, OverwritePrompt = true, AddExtension = true };
+
+        if (!string.IsNullOrWhiteSpace(fileName))
+        {
+            dialog.FileName = fileName;
+        }
 
         if (!string.IsNullOrWhiteSpace(initialDirectory) && Directory.Exists(initialDirectory))
         {
