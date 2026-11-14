@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:FileKeeper.App.Converters"
+             xmlns:services="clr-namespace:FileKeeper.App.Services"
              xmlns:log="clr-namespace:FileKeeper.Core.Logging;assembly=FileKeeper.Core"
              xmlns:models="clr-namespace:FileKeeper.Core.Models;assembly=FileKeeper.Core">
 
@@ -27,6 +28,57 @@
     <UserControl.Resources>
         <conv:IntToVisibilityConverter x:Key="CountToVis" />
         <conv:UtcToLocalTextConverter x:Key="LocalTime" />
+        <conv:EqualToVisibilityConverter x:Key="EqualToVisibility" />
+
+        <!-- 运行记录行：任务名称 | 计划运行时间 | 启动时间 | 结束时间 | 运行总时长 | 状态 -->
+        <DataTemplate x:Key="RunRecordTemplate" DataType="{x:Type services:TaskRunRecord}">
+            <Border Padding="14,10" Margin="0,0,0,6" Background="{StaticResource BgCardBrush}"
+                    CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="110" />
+                        <ColumnDefinition Width="110" />
+                        <ColumnDefinition Width="110" />
+                        <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="72" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Text="{Binding TaskName}"
+                               Style="{StaticResource Body}"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding TaskName}" />
+
+                    <TextBlock Grid.Column="1" Text="{Binding ScheduledText}" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                    <TextBlock Grid.Column="2" Text="{Binding StartedText}" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                    <TextBlock Grid.Column="3" Text="{Binding FinishedText}" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                    <TextBlock Grid.Column="4" Text="{Binding DurationText}" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="12,0,0,0" />
+
+                    <Border Grid.Column="5" x:Name="StatusTag" Style="{StaticResource Tag}"
+                            HorizontalAlignment="Left" Margin="12,0,0,0">
+                        <TextBlock x:Name="StatusText" Text="{Binding StatusText}" FontSize="11" />
+                    </Border>
+                </Grid>
+            </Border>
+
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsFailure}" Value="True">
+                    <Setter TargetName="StatusTag" Property="Background" Value="{StaticResource DangerTintBrush}" />
+                    <Setter TargetName="StatusText" Property="Foreground" Value="{StaticResource DangerBrush}" />
+                </DataTrigger>
+
+                <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                    <Setter TargetName="StatusTag" Property="Background" Value="{StaticResource WarningTintBrush}" />
+                    <Setter TargetName="StatusText" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                </DataTrigger>
+
+                <DataTrigger Binding="{Binding StatusText}" Value="成功">
+                    <Setter TargetName="StatusTag" Property="Background" Value="{StaticResource PrimaryTintBrush}" />
+                    <Setter TargetName="StatusText" Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
 
         <DataTemplate x:Key="LogEntryTemplate" DataType="{x:Type log:LogEntry}">
             <Border Padding="14,10" Margin="0,0,0,6" Background="{StaticResource BgCardBrush}"
@@ -127,8 +179,9 @@
             <!-- 筛选条 -->
             <Grid Margin="0,16,0,16">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="150" />
                     <ColumnDefinition Width="130" />
+                    <ColumnDefinition Width="110" />
+                    <ColumnDefinition Width="110" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
@@ -137,16 +190,21 @@
                           SelectedItem="{Binding SelectedDate}" />
 
                 <ComboBox Grid.Column="1"
+                          ItemsSource="{Binding ViewModes}"
+                          SelectedItem="{Binding ViewMode}"
+                          Margin="10,0,0,0" />
+
+                <ComboBox Grid.Column="2"
                           ItemsSource="{Binding LevelFilters}"
                           SelectedItem="{Binding LevelFilter}"
                           Margin="10,0,0,0" />
 
-                <TextBox Grid.Column="2"
+                <TextBox Grid.Column="3"
                          Margin="10,0,0,0"
                          Tag="按关键字或任务名筛选"
                          Text="{Binding Keyword, UpdateSourceTrigger=PropertyChanged}" />
 
-                <CheckBox Grid.Column="3"
+                <CheckBox Grid.Column="4"
                           Content="自动刷新"
                           IsChecked="{Binding AutoRefresh}"
                           Margin="16,0,0,0"
@@ -157,14 +215,47 @@
         <!-- 列表 -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,14,0,0" Padding="0,0,10,0">
             <StackPanel>
-                <Border Style="{StaticResource Section}"
-                        Padding="18"
-                        Visibility="{Binding Entries.Count, Converter={StaticResource CountToVis}}">
-                    <TextBlock Text="当前筛选条件下没有日志记录。"
-                               Style="{StaticResource Caption}" />
-                </Border>
+                <!-- 运行记录视图 -->
+                <StackPanel Visibility="{Binding ViewMode, Converter={StaticResource EqualToVisibility}, ConverterParameter=运行记录}">
+                    <Grid Margin="14,0,14,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="90" />
+                            <ColumnDefinition Width="72" />
+                        </Grid.ColumnDefinitions>
 
-                <ItemsControl ItemsSource="{Binding Entries}" ItemTemplate="{StaticResource LogEntryTemplate}" />
+                        <TextBlock Text="任务名称" Style="{StaticResource Caption}" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="1" Text="计划运行时间" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="12,0,0,0" />
+                        <TextBlock Grid.Column="2" Text="启动时间" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="12,0,0,0" />
+                        <TextBlock Grid.Column="3" Text="结束时间" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="12,0,0,0" />
+                        <TextBlock Grid.Column="4" Text="运行总时长" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="12,0,0,0" />
+                        <TextBlock Grid.Column="5" Text="状态" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="12,0,0,0" />
+                    </Grid>
+
+                    <Border Style="{StaticResource Section}"
+                            Padding="18"
+                            Visibility="{Binding Runs.Count, Converter={StaticResource CountToVis}}">
+                        <TextBlock Text="当前日期没有任务运行记录。"
+                                   Style="{StaticResource Caption}" />
+                    </Border>
+
+                    <ItemsControl ItemsSource="{Binding Runs}" ItemTemplate="{StaticResource RunRecordTemplate}" />
+                </StackPanel>
+
+                <!-- 原始日志视图 -->
+                <StackPanel Visibility="{Binding ViewMode, Converter={StaticResource EqualToVisibility}, ConverterParameter=原始日志}">
+                    <Border Style="{StaticResource Section}"
+                            Padding="18"
+                            Visibility="{Binding Entries.Count, Converter={StaticResource CountToVis}}">
+                        <TextBlock Text="当前筛选条件下没有日志记录。"
+                                   Style="{StaticResource Caption}" />
+                    </Border>
+
+                    <ItemsControl ItemsSource="{Binding Entries}" ItemTemplate="{StaticResource LogEntryTemplate}" />
+                </StackPanel>
             </StackPanel>
         </ScrollViewer>
 

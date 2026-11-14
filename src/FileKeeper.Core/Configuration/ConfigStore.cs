@@ -46,6 +46,13 @@ public sealed class ConfigStore : IDisposable
     /// <summary>外部（另一端进程）修改配置并热重载后触发</summary>
     public event EventHandler? ExternalChanged;
 
+    /// <summary>
+    /// 本进程修改配置（<see cref="Update"/> / <see cref="Save"/>）后触发。
+    /// 自写不会走 <see cref="ExternalChanged"/>（抑制回环），但本进程内依赖配置的组件
+    /// （如界面自己的日志目录）仍需要知道「刚改过」，否则要等重启才生效。
+    /// </summary>
+    public event EventHandler? SelfChanged;
+
     public string ConfigFilePath => _path;
 
     /// <summary>
@@ -99,6 +106,8 @@ public sealed class ConfigStore : IDisposable
         {
             SaveCore();
         }
+
+        RaiseSelfChanged();
     }
 
     /// <summary>在锁内修改配置并立即保存，避免「读-改-写」竞争</summary>
@@ -111,6 +120,24 @@ public sealed class ConfigStore : IDisposable
             mutate(Current);
             Current.Normalize();
             SaveCore();
+        }
+
+        RaiseSelfChanged();
+    }
+
+    /// <summary>
+    /// 在锁外触发，允许处理器内再读配置甚至再写配置而不死锁。
+    /// 处理器是幂等的（重复触发直接早退），连写两次配置也只会多走一轮。
+    /// </summary>
+    private void RaiseSelfChanged()
+    {
+        try
+        {
+            SelfChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch
+        {
+            // 通知失败不应影响保存本身；各处理器内部有自己的异常兜底
         }
     }
 
@@ -217,19 +244,16 @@ public sealed class ConfigStore : IDisposable
 
     private void OnConfigFileChanged(object sender, FileSystemEventArgs e)
     {
-        // 自己刚写的文件变更不触发重载，否则会造成「重载 → 回写 → 再重载」的循环
-        if (Environment.TickCount64 - Interlocked.Read(ref _lastSelfWriteTicks) < SelfWriteSuppressionMilliseconds)
-        {
-            return;
-        }
-
+        // 自己刚写的文件变更不能立即触发重载，否则会造成「重载 → 回写 → 再重载」的循环。
+        // 但也不能直接丢弃：若另一端恰好在抑制窗口内也写了配置，这个外部变更会被吞掉。
+        // 重新挂一次防抖，窗口过后重读文件——内容没变（自家事件）就只是空转一轮
         _debounceTimer?.Stop();
         _debounceTimer?.Start();
     }
 
     private void OnDebounceElapsed()
     {
-        AppConfig snapshot;
+        AppConfig? loaded = null;
 
         lock (_sync)
         {
@@ -238,9 +262,7 @@ public sealed class ConfigStore : IDisposable
                 try
                 {
                     using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                    var config = JsonSerializer.Deserialize<AppConfig>(stream, SerializerOptions);
-                    Current = config ?? new AppConfig();
-                    Current.Normalize();
+                    loaded = JsonSerializer.Deserialize<AppConfig>(stream, SerializerOptions);
                     break;
                 }
                 catch (JsonException)
@@ -257,12 +279,31 @@ public sealed class ConfigStore : IDisposable
                     return;
                 }
             }
+        }
 
-            snapshot = Current;
+        if (loaded is null)
+        {
+            return;
+        }
+
+        loaded.Normalize();
+
+        // 内容没变就不打扰（典型：自写抑制窗口过后收到的自家文件事件），
+        // 直接触发会让另一端把「自己写的配置」当成外部变更再处理一轮
+        var currentJson = JsonSerializer.Serialize(Current, SerializerOptions);
+        var loadedJson = JsonSerializer.Serialize(loaded, SerializerOptions);
+
+        if (string.Equals(currentJson, loadedJson, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        lock (_sync)
+        {
+            Current = loaded;
         }
 
         ExternalChanged?.Invoke(this, EventArgs.Empty);
-        _ = snapshot;
     }
 
     private void BackupCorruptedFile(Exception ex)

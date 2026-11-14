@@ -23,9 +23,11 @@ public sealed class CompressionRunner
     public async Task<TaskRunResult> RunAsync(
         CompressionTask task,
         IProgress<double>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        DateTimeOffset? scheduledAt = null)
     {
         var result = TaskRunResult.Create(task, TaskKind.Compression);
+        result.ScheduledAt = scheduledAt;
 
         try
         {
@@ -123,6 +125,11 @@ public sealed class CompressionRunner
                 return Fail(result, $"压缩已执行但未找到产物文件：{archivePath}");
             }
 
+            // 产物完整性校验：坏道、磁盘满会让压缩包当场损坏，
+            // 等到同步或解压时才暴露，往往已错过补救时机。
+            // 7z t 只对产物多一遍只读扫描，开销可控
+            await VerifyArchiveIntegrityAsync(archivePath, task, cancellationToken).ConfigureAwait(false);
+
             result.OutputPath = archivePath;
             result.SuccessCount = compressible.Count;
 
@@ -138,15 +145,77 @@ public sealed class CompressionRunner
         }
         catch (OperationCanceledException)
         {
-            result.Skip("任务已取消（服务停止或手动中断）");
-            _logger.Warn("任务已取消", task.Name);
-            _logger.TaskResult(result);
-            return result;
+            // 取消必须上抛，调用方据此中断整批或记「已手动终止」
+            throw;
         }
         catch (Exception ex)
         {
             return Fail(result, $"压缩失败：{ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    /// 用随包分发的 7z.exe 对产物做一遍完整性自测（7z t）。
+    /// 目前仅覆盖 ZIP；RAR 的命令行测试依赖 WinRAR 的交互语义，暂不做。
+    /// 未找到 7z.exe 时跳过（与引擎可用性策略一致）。
+    /// </summary>
+    private async Task VerifyArchiveIntegrityAsync(
+        string archivePath,
+        CompressionTask task,
+        CancellationToken cancellationToken)
+    {
+        var executable = SevenZipCliEngine.ExecutablePath;
+
+        if (executable is null || task.Format != ArchiveFormat.Zip)
+        {
+            return;
+        }
+
+        var arguments = new List<string>
+        {
+            "t",
+            ResolveArchiveTarget(archivePath),
+            "-bso0",
+            "-bsp0"
+        };
+
+        if (!string.IsNullOrEmpty(task.Password))
+        {
+            arguments.Add("-p" + task.Password);
+        }
+
+        var test = await CliProcessRunner.RunAsync(executable, arguments, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        if (test.ExitCode != 0)
+        {
+            var detail = (test.StandardError + " " + test.StandardOutput).Trim();
+            throw new ArchiveEngineException(
+                $"压缩包完整性校验失败（7z 退出码 {test.ExitCode}，产物可能已损坏）：{detail[..Math.Min(200, detail.Length)]}");
+        }
+
+        _logger.Info("压缩包完整性校验通过", task.Name);
+    }
+
+    /// <summary>分卷压缩时第一卷带数字后缀，定位第一个分卷来测试整包。</summary>
+    private static string ResolveArchiveTarget(string archivePath)
+    {
+        if (File.Exists(archivePath))
+        {
+            return archivePath;
+        }
+
+        var directory = Path.GetDirectoryName(archivePath);
+        var prefix = Path.GetFileName(archivePath);
+
+        if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
+        {
+            return Directory.EnumerateFiles(directory, prefix + ".*")
+                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault() ?? archivePath;
+        }
+
+        return archivePath;
     }
 
     private void DeleteSourceFiles(

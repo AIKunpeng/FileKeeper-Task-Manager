@@ -30,9 +30,11 @@ public sealed class ProgramRunner
     public async Task<TaskRunResult> RunAsync(
         ProgramTask task,
         IProgress<double>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        DateTimeOffset? scheduledAt = null)
     {
         var result = TaskRunResult.Create(task, TaskKind.Program);
+        result.ScheduledAt = scheduledAt;
 
         try
         {
@@ -78,6 +80,12 @@ public sealed class ProgramRunner
             {
                 // 只有超时分支会走到这里：正常取消由外层 catch 处理
                 Kill(process);
+
+                // 超时返回前把两个输出读取任务排干，
+                // 否则它们成为未观察任务，进程释放后抛 ObjectDisposedException 只能靠全局兜底吞掉
+                await SafeAwait(outputTask).ConfigureAwait(false);
+                await SafeAwait(errorTask).ConfigureAwait(false);
+
                 return Fail(result, $"执行超时（{task.TimeoutSeconds} 秒），已强制结束进程");
             }
 
@@ -100,10 +108,8 @@ public sealed class ProgramRunner
         }
         catch (OperationCanceledException)
         {
-            result.Skip("任务已取消（服务停止或手动中断）");
-            _logger.Warn("任务已取消", task.Name);
-            _logger.TaskResult(result);
-            return result;
+            // 取消必须上抛，调用方据此中断整批或记「已手动终止」
+            throw;
         }
         catch (Exception ex)
         {

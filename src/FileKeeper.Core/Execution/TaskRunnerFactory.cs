@@ -12,29 +12,33 @@ public static class TaskRunnerFactory
         CompressionTask task,
         IAppLogger logger,
         IProgress<double>? progress = null,
-        CancellationToken cancellationToken = default)
-        => new CompressionRunner(logger).RunAsync(task, progress, cancellationToken);
+        CancellationToken cancellationToken = default,
+        DateTimeOffset? scheduledAt = null)
+        => new CompressionRunner(logger).RunAsync(task, progress, cancellationToken, scheduledAt);
 
     public static Task<TaskRunResult> RunAsync(
         CleanupTask task,
         IAppLogger logger,
         IProgress<double>? progress = null,
-        CancellationToken cancellationToken = default)
-        => new CleanupRunner(logger).RunAsync(task, progress, cancellationToken);
+        CancellationToken cancellationToken = default,
+        DateTimeOffset? scheduledAt = null)
+        => new CleanupRunner(logger).RunAsync(task, progress, cancellationToken, scheduledAt);
 
     public static Task<TaskRunResult> RunAsync(
         SyncTask task,
         IAppLogger logger,
         IProgress<double>? progress = null,
-        CancellationToken cancellationToken = default)
-        => new SyncRunner(logger).RunAsync(task, progress, cancellationToken);
+        CancellationToken cancellationToken = default,
+        DateTimeOffset? scheduledAt = null)
+        => new SyncRunner(logger).RunAsync(task, progress, cancellationToken, scheduledAt);
 
     public static Task<TaskRunResult> RunAsync(
         ProgramTask task,
         IAppLogger logger,
         IProgress<double>? progress = null,
-        CancellationToken cancellationToken = default)
-        => new ProgramRunner(logger).RunAsync(task, progress, cancellationToken);
+        CancellationToken cancellationToken = default,
+        DateTimeOffset? scheduledAt = null)
+        => new ProgramRunner(logger).RunAsync(task, progress, cancellationToken, scheduledAt);
 
     /// <summary>任务是否启用（调度循环统一过滤用）</summary>
     public static bool IsEnabled(IScheduledTask task) => task.Enabled;

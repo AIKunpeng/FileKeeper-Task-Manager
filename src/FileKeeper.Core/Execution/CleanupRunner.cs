@@ -25,9 +25,20 @@ public sealed class CleanupRunner
     public Task<TaskRunResult> RunAsync(
         CleanupTask task,
         IProgress<double>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        DateTimeOffset? scheduledAt = null)
+        // 目录枚举与逐文件删除全是同步 IO，直接跑在调用线程上会把
+        // 界面端的 UI 线程整个挂住（进度条冻结、终止按钮排不上队），必须甩到线程池
+        => Task.Run(() => RunCore(task, progress, cancellationToken, scheduledAt), cancellationToken);
+
+    private TaskRunResult RunCore(
+        CleanupTask task,
+        IProgress<double>? progress,
+        CancellationToken cancellationToken,
+        DateTimeOffset? scheduledAt)
     {
         var result = TaskRunResult.Create(task, TaskKind.Cleanup);
+        result.ScheduledAt = scheduledAt;
 
         try
         {
@@ -36,12 +47,12 @@ public sealed class CleanupRunner
 
             if (string.IsNullOrWhiteSpace(task.TargetDirectory) || !Directory.Exists(task.TargetDirectory))
             {
-                return Task.FromResult(Fail(result, $"清理目录不存在或不可访问：{task.TargetDirectory}"));
+                return Fail(result, $"清理目录不存在或不可访问：{task.TargetDirectory}");
             }
 
             if (AppPaths.IsProtectedDirectory(task.TargetDirectory))
             {
-                return Task.FromResult(Fail(result, $"拒绝清理受保护的系统目录：{task.TargetDirectory}"));
+                return Fail(result, $"拒绝清理受保护的系统目录：{task.TargetDirectory}");
             }
 
             var cutoff = DateTimeOffset.Now - task.Threshold;
@@ -63,7 +74,7 @@ public sealed class CleanupRunner
             {
                 result.Skip("目录中没有文件");
                 _logger.TaskResult(result);
-                return Task.FromResult(result);
+                return result;
             }
 
             progress?.Report(0);
@@ -99,18 +110,17 @@ public sealed class CleanupRunner
             result.Complete();
             progress?.Report(100);
             _logger.TaskResult(result);
-            return Task.FromResult(result);
+            return result;
         }
         catch (OperationCanceledException)
         {
-            result.Skip("任务已取消（服务停止或手动中断）");
-            _logger.Warn("任务已取消", task.Name);
-            _logger.TaskResult(result);
-            return Task.FromResult(result);
+            // 取消必须上抛：整批取消要在调用方中断后续任务、单任务终止要走
+            // 「已手动终止」分支，吞掉的话调用方无法区分自然完成与被取消
+            throw;
         }
         catch (Exception ex)
         {
-            return Task.FromResult(Fail(result, $"清理失败：{ex.Message}", ex));
+            return Fail(result, $"清理失败：{ex.Message}", ex);
         }
     }
 

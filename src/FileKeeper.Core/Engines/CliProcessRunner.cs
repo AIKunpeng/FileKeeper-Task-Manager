@@ -79,6 +79,10 @@ internal static class CliProcessRunner
 
             linked = timeoutSource ?? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             await process.WaitForExitAsync(linked.Token).ConfigureAwait(false);
+
+            // WaitForExitAsync 返回时异步输出事件处理器可能还没排空，
+            // 补一次同步等待确保输出尾部（结果摘要）已收全
+            process.WaitForExit();
         }
         catch (OperationCanceledException)
         {

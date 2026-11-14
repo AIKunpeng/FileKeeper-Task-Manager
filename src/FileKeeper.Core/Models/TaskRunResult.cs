@@ -17,6 +17,12 @@ public sealed class TaskRunResult
 
     public DateTimeOffset FinishedAt { get; set; }
 
+    /// <summary>
+    /// 计划运行时间。定时执行时为触发本次运行的排期点（补跑时是错过的那个点）；
+    /// 手动执行为 null——界面据此显示「手动触发」。
+    /// </summary>
+    public DateTimeOffset? ScheduledAt { get; set; }
+
     public TimeSpan Duration => FinishedAt - StartedAt;
 
     public int SuccessCount { get; set; }

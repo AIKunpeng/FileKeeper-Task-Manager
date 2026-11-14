@@ -183,7 +183,12 @@ public sealed partial class SyncTaskEditViewModel : TaskEditorViewModelBase
             }
             else
             {
-                config.SyncTasks[config.SyncTasks.IndexOf(existing)] = _model.Clone();
+                var clone = _model.Clone();
+
+                // 编辑基于打开时的快照，服务可能已推进调度状态；
+                // 整对象替换会把 NextRunUtc 回滚到过去，任务会被立刻重跑
+                clone.Schedule.RestoreRuntimeStateFrom(existing.Schedule);
+                config.SyncTasks[config.SyncTasks.IndexOf(existing)] = clone;
             }
         });
     }

@@ -248,7 +248,7 @@ public sealed class SchedulerWorker : BackgroundService
             await HandleAsync(
                 task,
                 TaskKind.Compression,
-                ct => TaskRunnerFactory.RunAsync(task, _logger, cancellationToken: ct),
+                (planned, ct) => TaskRunnerFactory.RunAsync(task, _logger, cancellationToken: ct, scheduledAt: planned),
                 updates,
                 now,
                 windowStart,
@@ -260,7 +260,7 @@ public sealed class SchedulerWorker : BackgroundService
             await HandleAsync(
                 task,
                 TaskKind.Cleanup,
-                ct => TaskRunnerFactory.RunAsync(task, _logger, cancellationToken: ct),
+                (planned, ct) => TaskRunnerFactory.RunAsync(task, _logger, cancellationToken: ct, scheduledAt: planned),
                 updates,
                 now,
                 windowStart,
@@ -272,7 +272,7 @@ public sealed class SchedulerWorker : BackgroundService
             await HandleAsync(
                 task,
                 TaskKind.Sync,
-                ct => TaskRunnerFactory.RunAsync(task, _logger, cancellationToken: ct),
+                (planned, ct) => TaskRunnerFactory.RunAsync(task, _logger, cancellationToken: ct, scheduledAt: planned),
                 updates,
                 now,
                 windowStart,
@@ -284,7 +284,7 @@ public sealed class SchedulerWorker : BackgroundService
             await HandleAsync(
                 task,
                 TaskKind.Program,
-                ct => TaskRunnerFactory.RunAsync(task, _logger, cancellationToken: ct),
+                (planned, ct) => TaskRunnerFactory.RunAsync(task, _logger, cancellationToken: ct, scheduledAt: planned),
                 updates,
                 now,
                 windowStart,
@@ -297,7 +297,7 @@ public sealed class SchedulerWorker : BackgroundService
     private async Task HandleAsync<T>(
         T task,
         TaskKind kind,
-        Func<CancellationToken, Task<TaskRunResult>> execute,
+        Func<DateTimeOffset?, CancellationToken, Task<TaskRunResult>> execute,
         List<ScheduleUpdate> updates,
         DateTimeOffset now,
         DateTimeOffset windowStart,
@@ -313,24 +313,35 @@ public sealed class SchedulerWorker : BackgroundService
         switch (ScheduleCalculator.Decide(task.Schedule, now, windowStart))
         {
             case ScheduleDecision.Due:
-                if (await ExecuteSafelyAsync(execute, task.Name, cancellationToken).ConfigureAwait(false))
+            {
+                // 计划时间就是本次触发的排期点（Advance 之前读取），
+                // 随执行结果写入运行记录，界面据此展示「计划运行时间」
+                var planned = task.Schedule.NextRunUtc;
+
+                if (await ExecuteSafelyAsync(execute, planned, task.Name, cancellationToken).ConfigureAwait(false))
                 {
                     ScheduleCalculator.Advance(task.Schedule, now);
                 }
 
                 changed = true;
                 break;
+            }
 
             case ScheduleDecision.Missed:
+            {
                 _logger.Info($"检测到错过的执行点，开始补跑", task.Name);
 
-                if (await ExecuteSafelyAsync(execute, task.Name, cancellationToken).ConfigureAwait(false))
+                // 补跑的计划时间 = 错过的那个点
+                var planned = task.Schedule.NextRunUtc;
+
+                if (await ExecuteSafelyAsync(execute, planned, task.Name, cancellationToken).ConfigureAwait(false))
                 {
                     ScheduleCalculator.Advance(task.Schedule, now);
                 }
 
                 changed = true;
                 break;
+            }
 
             case ScheduleDecision.ExpiredSkipped:
                 _logger.Info("跳过错过的执行点（未开启补跑）", task.Name);
@@ -342,6 +353,11 @@ public sealed class SchedulerWorker : BackgroundService
         if (changed)
         {
             updates.Add(Capture(task, kind));
+
+            // 每个任务执行完立即落盘：整轮批末统一写的话，
+            // 服务中途停止会丢掉已执行任务的调度推进，重启后被判补跑重复执行
+            ApplyUpdates(updates);
+            updates.Clear();
         }
     }
 
@@ -350,13 +366,14 @@ public sealed class SchedulerWorker : BackgroundService
     /// 这里只拦截执行器之外（如引擎创建）的意外，返回 false 表示不应推进调度。
     /// </summary>
     private async Task<bool> ExecuteSafelyAsync(
-        Func<CancellationToken, Task<TaskRunResult>> execute,
+        Func<DateTimeOffset?, CancellationToken, Task<TaskRunResult>> execute,
+        DateTimeOffset? scheduledAt,
         string taskName,
         CancellationToken cancellationToken)
     {
         try
         {
-            await execute(cancellationToken).ConfigureAwait(false);
+            await execute(scheduledAt, cancellationToken).ConfigureAwait(false);
             return true;
         }
         catch (OperationCanceledException)

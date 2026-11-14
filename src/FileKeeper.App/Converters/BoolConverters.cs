@@ -134,6 +134,21 @@ public sealed class IntToVisibilityConverter : IValueConverter
         throw new NotSupportedException();
 }
 
+/// <summary>
+/// 字符串相等 → Visibility。相等（与 parameter 一致）时显示。
+/// 用于视图切换：ViewMode 等于某个视图名时只显示对应的区块。
+/// </summary>
+public sealed class EqualToVisibilityConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => string.Equals(value as string, parameter as string, StringComparison.Ordinal)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
 /// <summary>空字符串或 null → Collapsed。用于「有内容才显示」的提示块。</summary>
 public sealed class EmptyToVisibilityConverter : IValueConverter
 {

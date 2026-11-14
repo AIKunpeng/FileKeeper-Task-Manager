@@ -44,9 +44,11 @@ public sealed class SyncRunner
     public async Task<TaskRunResult> RunAsync(
         SyncTask task,
         IProgress<double>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        DateTimeOffset? scheduledAt = null)
     {
         var result = TaskRunResult.Create(task, TaskKind.Sync);
+        result.ScheduledAt = scheduledAt;
 
         try
         {
@@ -126,10 +128,8 @@ public sealed class SyncRunner
         }
         catch (OperationCanceledException)
         {
-            result.Skip("任务已取消（服务停止或手动中断）");
-            _logger.Warn("任务已取消", task.Name);
-            _logger.TaskResult(result);
-            return result;
+            // 取消必须上抛，调用方据此中断整批或记「已手动终止」
+            throw;
         }
         catch (Exception ex)
         {

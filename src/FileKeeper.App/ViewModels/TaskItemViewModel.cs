@@ -29,9 +29,13 @@ public sealed partial class TaskItemViewModel : ObservableObject
         LocationLabel = locationLabel;
         LocationText = locationText;
         ScheduleText = ScheduleCalculator.Describe(schedule);
+        NextRun = schedule.NextRunUtc;
         NextRunText = Format(schedule.NextRunUtc, "尚未排定");
         LastRunText = Format(schedule.LastRunUtc, "从未执行");
     }
+
+    /// <summary>下次执行时间（真实时间戳）。汇总栏按它排序，文本排序跨年会排错</summary>
+    public DateTimeOffset? NextRun { get; }
 
     public Guid Id { get; }
 

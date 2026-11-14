@@ -60,4 +60,27 @@ public sealed class ScheduleConfig
             MonthDays.Add(DateTime.Today.Day);
         }
     }
+
+    /// <summary>
+    /// 保留运行时调度状态（LastRunUtc / NextRunUtc），调度配置内容以本对象为准。
+    ///
+    /// 编辑页基于打开时的配置快照工作，保存时若整对象替换，会把服务端在编辑期间
+    /// 推进的 LastRunUtc / NextRunUtc 一并回滚到过去，任务会被立刻重跑一次。
+    /// 调度配置被用户改过时，旧的 NextRunUtc 已不适用，按新配置重新推算。
+    /// </summary>
+    public void RestoreRuntimeStateFrom(ScheduleConfig source)
+    {
+        LastRunUtc = source.LastRunUtc;
+
+        var configChanged =
+            Frequency != source.Frequency ||
+            TimeOfDay != source.TimeOfDay ||
+            RunIfMissed != source.RunIfMissed ||
+            !Weekdays.SequenceEqual(source.Weekdays) ||
+            !MonthDays.SequenceEqual(source.MonthDays);
+
+        NextRunUtc = configChanged
+            ? Scheduling.ScheduleCalculator.ComputeNextRunUtc(this, DateTimeOffset.Now)
+            : source.NextRunUtc;
+    }
 }

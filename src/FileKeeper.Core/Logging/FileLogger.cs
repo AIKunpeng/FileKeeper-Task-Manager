@@ -15,6 +15,9 @@ public sealed class FileLogger : IAppLogger, IDisposable
     private const string DateFormat = "yyyy-MM-dd";
     private const string TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff";
 
+    /// <summary>运行记录行的消息前缀，界面据此识别并解析（也用于在原始日志视图中隐藏）</summary>
+    public const string RunRecordPrefix = "RUN";
+
     private static readonly object StaticSync = new();
 
     private readonly object _sync = new();
@@ -191,6 +194,20 @@ public sealed class FileLogger : IAppLogger, IDisposable
         };
 
         Write(level, summary, result.TaskName, null);
+
+        // 机器可读的运行记录行：界面「运行记录」视图按它精确还原每次任务运行
+        // （任务名、计划/启动/结束时间、状态），比解析自然语言摘要可靠。
+        // 原始日志视图会隐藏本行，避免干扰阅读
+        Write(
+            LogLevel.Info,
+            string.Join('|',
+                RunRecordPrefix,
+                result.Status,
+                result.ScheduledAt?.ToString(TimestampFormat, CultureInfo.InvariantCulture) ?? "-",
+                result.StartedAt.ToString(TimestampFormat, CultureInfo.InvariantCulture),
+                result.FinishedAt.ToString(TimestampFormat, CultureInfo.InvariantCulture)),
+            result.TaskName,
+            null);
 
         foreach (var detail in result.Details.Take(20))
         {

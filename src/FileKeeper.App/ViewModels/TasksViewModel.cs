@@ -416,11 +416,10 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
                 results.Add(result);
 
-                // 手动执行后推进调度，保证界面与服务端的排期一致
-                if (result.Status is TaskRunStatus.Success or TaskRunStatus.PartialSuccess)
-                {
-                    AdvanceSchedule(GetKind(task), task.Id, DateTimeOffset.Now);
-                }
+                // 与服务端语义对齐：只要任务实际执行过就推进调度。
+                // 失败/跳过不推进的话 NextRunUtc 停在过去，
+                // 服务下一轮会判定到期/补跑，把刚失败的任务立刻重跑一遍
+                AdvanceSchedule(GetKind(task), task.Id, DateTimeOffset.Now);
             }
         }
         finally
@@ -497,16 +496,17 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             return;
         }
 
-        // 最近一次执行时间：取所有已排定任务中最早的
+        // 下一次执行时间：取所有已启用任务中最早的。按真实时间戳排序，
+        // 对 "MM-dd HH:mm" 文本排序会在跨年时排错
         var next = new[] { CompressionTasks, CleanupTasks, SyncTasks, ProgramTasks }
             .SelectMany(list => list)
-            .Where(item => item.Enabled && item.NextRunText != "尚未排定")
+            .Where(item => item.Enabled && item.NextRun.HasValue)
+            .OrderBy(item => item.NextRun)
             .Select(item => item.NextRunText)
-            .OrderBy(text => text)
             .FirstOrDefault();
 
         SummaryText = $"共 {total} 个任务（{enabled} 个已启用）"
-                      + (next is null ? string.Empty : $" · 最近一次执行 {next}");
+                      + (next is null ? string.Empty : $" · 下次执行 {next}");
     }
 
     private void Rebuild(

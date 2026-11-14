@@ -61,6 +61,9 @@ public sealed class SevenZipCliEngine : IArchiveEngine
                 "a",
                 "-t" + (request.Format == ArchiveFormat.Zip ? "zip" : "7z"),
                 $"-mx={Math.Clamp(request.CompressionLevel, 0, 9)}",
+                // 多线程压缩：新版 7-Zip 的 Deflate 编码器支持多线程，老版本会忽略该参数。
+                // 对大文件（数据库备份这类）收益显著
+                "-mmt=on",
                 ListFileEncodingHint,
                 "-y",
                 "-bso0",

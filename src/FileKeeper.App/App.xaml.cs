@@ -49,6 +49,9 @@ public partial class App : Application
             config.Load();
             config.StartWatching();
             config.ExternalChanged += OnConfigChanged;
+            // 设置页保存属于本进程自写，不触发 ExternalChanged（防回环抑制），
+            // 但改日志目录必须立刻切本进程的写入与查询位置，所以补听自写事件
+            config.SelfChanged += OnConfigChanged;
         }
         catch (Exception ex)
         {
@@ -103,6 +106,7 @@ public partial class App : Application
         if (_configStore is not null)
         {
             _configStore.ExternalChanged -= OnConfigChanged;
+            _configStore.SelfChanged -= OnConfigChanged;
             _configStore.StopWatching();
             _configStore.Dispose();
         }
@@ -115,7 +119,7 @@ public partial class App : Application
     /// <summary>
     /// 配置热重载时把日志目录同步到当前进程。设置页改了目录、或另一个进程改了它都会走到这里。
     /// </summary>
-    private void OnConfigChanged(object? sender, EventArgs e) => Dispatcher.Invoke(SyncLogDirectory);
+    private void OnConfigChanged(object? sender, EventArgs e) => Dispatcher.InvokeAsync(SyncLogDirectory);
 
     /// <summary>
     /// 把本进程的日志写入切换到当前生效的目录。
